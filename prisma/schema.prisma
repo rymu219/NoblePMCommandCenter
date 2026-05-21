@@ -1,85 +1,53 @@
 // Noble PM Command Center — data model.
-// v0 = schema-only (not yet migrated). v1 wires Postgres + Prisma Client.
 //
-// Entities mirror /root/.claude/plans/i-need-to-make-dynamic-mango.md.
+// Dev DB: SQLite (file:./dev.db). The schema avoids Postgres-only
+// annotations so the same schema works in development and (with a
+// provider change) on managed Postgres in production.
+//
+// Enums are represented as plain string fields because SQLite's Prisma
+// driver does not support enum types. The acceptable values are
+// documented next to each field.
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum Role {
-  admin
-  engineer
-  viewer
-}
-
-enum Department {
-  engineering
-  process
-  automation
-  quality
-  scheduling
-  purchasing
-  sales
-  management
-  admin
-}
-
-enum ProjectStatus {
-  not_started
-  active
-  on_hold
-  complete
-  archived
-}
-
-enum SectionKind {
-  summary_cards
-  phases_runs
-  parts_material
-  hours_by_role
-  gantt_overview
-  gantt_detail
-  risks_preconditions
-  decisions_log
-  meetings
-  files
-  budget
-  notes_freeform
-}
-
-enum MeetingKind {
-  agenda
-  transcript
-}
-
-enum ProposalStatus {
-  pending
-  accepted
-  rejected
+  provider = "sqlite"
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
+  id           String   @id @default(cuid())
+  email        String   @unique
   name         String
   passwordHash String
-  role         Role         @default(viewer)
-  department   Department   @default(engineering)
-  hourlyRate   Decimal?     @db.Decimal(8, 2)
-  active       Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  // Relations
-  ownedProjects   Project[]            @relation("OwnedProjects")
-  assignments     ProjectAssignment[]
-  timeEntries     TimeEntry[]
-  timeNotes       TimeNote[]
-  auditLog        AuditLog[]
+  /// admin | engineer | viewer
+  role         String   @default("viewer")
+  /// engineering | process | automation | quality | scheduling | purchasing | sales | management | admin
+  department   String   @default("engineering")
+  /// Hourly rate in USD; null until set. Stored as float for SQLite dev.
+  hourlyRate   Float?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  ownedProjects ProjectRow[] @relation("OwnedProjects")
+  assignments   ProjectAssignment[]
+  timeEntries   TimeEntry[]
+  timeNotes     TimeNote[]
+  auditLog      AuditLog[]
+  sessions      Session[]
+  closesPerformed PeriodClose[] @relation("ClosedBy")
+}
+
+/// NextAuth-style sessions stored in DB for credentials provider.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 /// Programs are derived from the prefix on each Project #.
@@ -89,26 +57,30 @@ model Program {
   customer     String?
   contactEmail String?
   createdAt    DateTime     @default(now())
-  projects     Project[]
+  projects     ProjectRow[]
 }
 
-model Project {
-  id                String         @id // XXX-XXX
+/// "Project" is a reserved-feel name; Prisma is happy either way. Using
+/// ProjectRow to keep the relation field naming clean (`project`).
+model ProjectRow {
+  id                String              @id // XXX-XXX
   programPrefix     String
-  program           Program        @relation(fields: [programPrefix], references: [prefix])
+  program           Program             @relation(fields: [programPrefix], references: [prefix])
   name              String
   subtitle          String?
-  status            ProjectStatus  @default(active)
+  /// not_started | active | on_hold | complete | archived
+  status            String              @default("active")
   ownerId           String?
-  owner             User?          @relation("OwnedProjects", fields: [ownerId], references: [id])
+  owner             User?               @relation("OwnedProjects", fields: [ownerId], references: [id])
   startDate         DateTime?
   targetEndDate     DateTime?
-  budgetTotal       Decimal?       @db.Decimal(12, 2)
-  spentTotal        Decimal?       @db.Decimal(12, 2)
-  templateToggles   Json           // which optional sections are enabled
-  lastUpdatedAt     DateTime       @updatedAt
+  budgetTotal       Float?
+  spentTotal        Float?
+  /// JSON: which optional sections are enabled. Stored as TEXT on SQLite.
+  templateToggles   String              @default("{}")
+  lastUpdatedAt     DateTime            @updatedAt
   lastUpdatedById   String?
-  createdAt         DateTime       @default(now())
+  createdAt         DateTime            @default(now())
 
   sections      ProjectSection[]
   assignments   ProjectAssignment[]
@@ -122,23 +94,26 @@ model Project {
 model ProjectAssignment {
   projectId  String
   userId     String
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  project    ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
 
   @@id([projectId, userId])
 }
 
-/// One row per section instance on a project. `data` is jsonb so the
-/// schema can accept new fields without a migration.
+/// One row per section instance on a project. `data` is JSON-as-TEXT.
 model ProjectSection {
-  id          String      @id @default(cuid())
+  id          String     @id @default(cuid())
   projectId   String
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind        SectionKind
+  project     ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// summary_cards | phases_runs | parts_material | hours_by_role |
+  /// gantt_overview | gantt_detail | risks_preconditions | decisions_log |
+  /// meetings | files | budget | notes_freeform
+  kind        String
   position    Int
-  data        Json
-  updatedAt   DateTime    @updatedAt
+  /// JSON-encoded section data.
+  data        String
+  updatedAt   DateTime   @updatedAt
   updatedById String?
 
   @@unique([projectId, kind])
@@ -146,53 +121,56 @@ model ProjectSection {
 }
 
 model GanttTask {
-  id          String  @id @default(cuid())
+  id          String     @id @default(cuid())
   projectId   String
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
-  role        Department
+  /// engineering | process | automation | quality
+  role        String
   start       DateTime
   end         DateTime
-  dependsOn   Json     // array of GanttTask ids
-  isGate      Boolean  @default(false)
-  status      String   @default("not_started")
+  /// JSON array of GanttTask ids.
+  dependsOn   String     @default("[]")
+  isGate      Boolean    @default(false)
+  status      String     @default("not_started")
 }
 
 model TimeEntry {
-  id         String   @id @default(cuid())
+  id         String     @id @default(cuid())
   userId     String
   projectId  String
-  entryDate  DateTime @db.Date
-  hours      Decimal  @db.Decimal(5, 2)
-  source     String   @default("daily-grid")
-  createdAt  DateTime @default(now())
+  entryDate  DateTime
+  hours      Float
+  source     String     @default("daily-grid")
+  createdAt  DateTime   @default(now())
 
-  user    User    @relation(fields: [userId], references: [id])
-  project Project @relation(fields: [projectId], references: [id])
+  user    User       @relation(fields: [userId], references: [id])
+  project ProjectRow @relation(fields: [projectId], references: [id])
 
   @@unique([userId, projectId, entryDate])
   @@index([entryDate])
 }
 
 model TimeNote {
-  id              String   @id @default(cuid())
+  id              String     @id @default(cuid())
   userId          String
   projectId       String
-  weekStartDate   DateTime @db.Date
+  weekStartDate   DateTime
   note            String
 
-  user    User    @relation(fields: [userId], references: [id])
-  project Project @relation(fields: [projectId], references: [id])
+  user    User       @relation(fields: [userId], references: [id])
+  project ProjectRow @relation(fields: [projectId], references: [id])
 
   @@unique([userId, projectId, weekStartDate])
 }
 
 model PeriodClose {
-  id        String   @id @default(cuid())
-  year      Int
-  month     Int      // 1-12
-  closedAt  DateTime @default(now())
+  id         String   @id @default(cuid())
+  year       Int
+  month      Int      // 1-12
+  closedAt   DateTime @default(now())
   closedById String
+  closedBy   User     @relation("ClosedBy", fields: [closedById], references: [id])
 
   @@unique([year, month])
 }
@@ -200,10 +178,11 @@ model PeriodClose {
 model Meeting {
   id                          String       @id @default(cuid())
   projectId                   String
-  project                     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind                        MeetingKind
+  project                     ProjectRow   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// agenda | transcript
+  kind                        String
   occurredAt                  DateTime     @default(now())
-  bodyText                    String       @db.Text
+  bodyText                    String
   agendaGeneratedFromStateAt  DateTime?
   createdById                 String?
 
@@ -211,26 +190,30 @@ model Meeting {
 }
 
 model TranscriptProposal {
-  id              String         @id @default(cuid())
+  id              String   @id @default(cuid())
   meetingId       String
-  meeting         Meeting        @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  sectionKind     SectionKind
-  targetId        String?        // e.g. specific section row id when applicable
-  proposedChange  Json
-  status          ProposalStatus @default(pending)
+  meeting         Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  /// matches ProjectSection.kind
+  sectionKind     String
+  targetId        String?  // optional row id when applicable
+  /// JSON-encoded proposed change.
+  proposedChange  String
+  /// pending | accepted | rejected
+  status          String   @default("pending")
   decidedById     String?
   decidedAt       DateTime?
 }
 
 model Attachment {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind         String   // "link" | "upload"
+  project      ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// link | upload
+  kind         String
   urlOrKey     String
   label        String
   uploadedById String?
-  uploadedAt   DateTime @default(now())
+  uploadedAt   DateTime   @default(now())
 }
 
 model AuditLog {
@@ -240,8 +223,9 @@ model AuditLog {
   entityType   String
   entityId     String
   action       String
-  before       Json?
-  after        Json?
+  /// JSON-encoded before/after blobs.
+  before       String?
+  after        String?
   at           DateTime @default(now())
 
   @@index([entityType, entityId])

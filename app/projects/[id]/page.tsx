@@ -10,11 +10,7 @@ import { RisksSection } from "@/components/sections/risks";
 import { DecisionsSection } from "@/components/sections/decisions";
 import { NotesBlock } from "@/components/sections/notes-block";
 import { Legend } from "@/components/sections/legend";
-import { E_DELTA_PROJECT } from "@/lib/sample-data";
-
-const PROJECTS: Record<string, typeof E_DELTA_PROJECT> = {
-  [E_DELTA_PROJECT.projectNumber]: E_DELTA_PROJECT,
-};
+import { loadProject } from "@/lib/project-loader";
 
 export default async function ProjectPage({
   params,
@@ -22,7 +18,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const project = PROJECTS[id];
+  const project = await loadProject(id);
   if (!project) notFound();
 
   const s = project.sections;

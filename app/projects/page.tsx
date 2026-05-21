@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { SAMPLE_PROJECT_INDEX } from "@/lib/sample-data";
+import { listProjectsForDashboard } from "@/lib/project-loader";
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const projects = await listProjectsForDashboard();
   return (
     <div className="mx-auto w-full max-w-[1200px] px-6 py-8">
       <h1 className="font-serif text-3xl font-medium text-noble-black">
@@ -12,7 +13,7 @@ export default function ProjectsPage() {
         full template view.
       </p>
       <ul className="mt-6 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-white">
-        {SAMPLE_PROJECT_INDEX.map((p) => (
+        {projects.map((p) => (
           <li key={p.projectNumber}>
             <Link
               href={`/projects/${p.projectNumber}`}

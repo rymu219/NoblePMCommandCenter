@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SAMPLE_PROJECT_INDEX } from "@/lib/sample-data";
+import { listProjectsForDashboard } from "@/lib/project-loader";
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
@@ -26,8 +26,8 @@ function staleDays(date: string): number {
   return Math.max(0, Math.floor((now - then) / (1000 * 60 * 60 * 24)));
 }
 
-export default function Dashboard() {
-  const projects = SAMPLE_PROJECT_INDEX;
+export default async function Dashboard() {
+  const projects = await listProjectsForDashboard();
   const totals = projects.reduce(
     (a, p) => ({
       hoursLogged: a.hoursLogged + p.hoursLogged,
@@ -35,7 +35,6 @@ export default function Dashboard() {
     }),
     { hoursLogged: 0, hoursEstimated: 0 }
   );
-
   const stale = projects.filter((p) => staleDays(p.lastUpdated) > 30);
 
   return (
@@ -53,7 +52,7 @@ export default function Dashboard() {
       <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card label="Active projects" value={`${projects.length}`} />
         <Card
-          label="Hours logged (sample)"
+          label="Hours logged"
           value={`${totals.hoursLogged}`}
           unit="hrs"
         />
@@ -74,10 +73,10 @@ export default function Dashboard() {
         <header className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
           <h2 className="font-medium text-noble-black">Projects</h2>
           <Link
-            href="/admin/new-project"
+            href="/admin"
             className="rounded-md bg-noble-black px-3 py-1.5 text-xs font-medium text-white hover:bg-noble-black/85"
           >
-            + New Project
+            Admin
           </Link>
         </header>
         <div className="overflow-x-auto">
@@ -154,11 +153,6 @@ export default function Dashboard() {
           </table>
         </div>
       </section>
-
-      <p className="mt-6 text-xs text-[var(--muted)]">
-        v0 scaffold. Data shown above is sample data drawn from the time
-        tracking spreadsheet you shared, plus the E-Delta Canister template.
-      </p>
     </div>
   );
 }
@@ -191,9 +185,7 @@ function Card({
         >
           {value}
         </div>
-        {unit ? (
-          <div className="text-xs text-[var(--muted)]">{unit}</div>
-        ) : null}
+        {unit ? <div className="text-xs text-[var(--muted)]">{unit}</div> : null}
       </div>
     </div>
   );

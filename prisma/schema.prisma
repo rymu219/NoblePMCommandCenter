@@ -1,0 +1,248 @@
+// Noble PM Command Center — data model.
+// v0 = schema-only (not yet migrated). v1 wires Postgres + Prisma Client.
+//
+// Entities mirror /root/.claude/plans/i-need-to-make-dynamic-mango.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  engineer
+  viewer
+}
+
+enum Department {
+  engineering
+  process
+  automation
+  quality
+  scheduling
+  purchasing
+  sales
+  management
+  admin
+}
+
+enum ProjectStatus {
+  not_started
+  active
+  on_hold
+  complete
+  archived
+}
+
+enum SectionKind {
+  summary_cards
+  phases_runs
+  parts_material
+  hours_by_role
+  gantt_overview
+  gantt_detail
+  risks_preconditions
+  decisions_log
+  meetings
+  files
+  budget
+  notes_freeform
+}
+
+enum MeetingKind {
+  agenda
+  transcript
+}
+
+enum ProposalStatus {
+  pending
+  accepted
+  rejected
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  role         Role         @default(viewer)
+  department   Department   @default(engineering)
+  hourlyRate   Decimal?     @db.Decimal(8, 2)
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  // Relations
+  ownedProjects   Project[]            @relation("OwnedProjects")
+  assignments     ProjectAssignment[]
+  timeEntries     TimeEntry[]
+  timeNotes       TimeNote[]
+  auditLog        AuditLog[]
+}
+
+/// Programs are derived from the prefix on each Project #.
+model Program {
+  prefix       String       @id // e.g. "647"
+  name         String?
+  customer     String?
+  contactEmail String?
+  createdAt    DateTime     @default(now())
+  projects     Project[]
+}
+
+model Project {
+  id                String         @id // XXX-XXX
+  programPrefix     String
+  program           Program        @relation(fields: [programPrefix], references: [prefix])
+  name              String
+  subtitle          String?
+  status            ProjectStatus  @default(active)
+  ownerId           String?
+  owner             User?          @relation("OwnedProjects", fields: [ownerId], references: [id])
+  startDate         DateTime?
+  targetEndDate     DateTime?
+  budgetTotal       Decimal?       @db.Decimal(12, 2)
+  spentTotal        Decimal?       @db.Decimal(12, 2)
+  templateToggles   Json           // which optional sections are enabled
+  lastUpdatedAt     DateTime       @updatedAt
+  lastUpdatedById   String?
+  createdAt         DateTime       @default(now())
+
+  sections      ProjectSection[]
+  assignments   ProjectAssignment[]
+  timeEntries   TimeEntry[]
+  timeNotes     TimeNote[]
+  ganttTasks    GanttTask[]
+  meetings      Meeting[]
+  attachments   Attachment[]
+}
+
+model ProjectAssignment {
+  projectId  String
+  userId     String
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([projectId, userId])
+}
+
+/// One row per section instance on a project. `data` is jsonb so the
+/// schema can accept new fields without a migration.
+model ProjectSection {
+  id          String      @id @default(cuid())
+  projectId   String
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind        SectionKind
+  position    Int
+  data        Json
+  updatedAt   DateTime    @updatedAt
+  updatedById String?
+
+  @@unique([projectId, kind])
+  @@index([projectId, position])
+}
+
+model GanttTask {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  role        Department
+  start       DateTime
+  end         DateTime
+  dependsOn   Json     // array of GanttTask ids
+  isGate      Boolean  @default(false)
+  status      String   @default("not_started")
+}
+
+model TimeEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String
+  entryDate  DateTime @db.Date
+  hours      Decimal  @db.Decimal(5, 2)
+  source     String   @default("daily-grid")
+  createdAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([userId, projectId, entryDate])
+  @@index([entryDate])
+}
+
+model TimeNote {
+  id              String   @id @default(cuid())
+  userId          String
+  projectId       String
+  weekStartDate   DateTime @db.Date
+  note            String
+
+  user    User    @relation(fields: [userId], references: [id])
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([userId, projectId, weekStartDate])
+}
+
+model PeriodClose {
+  id        String   @id @default(cuid())
+  year      Int
+  month     Int      // 1-12
+  closedAt  DateTime @default(now())
+  closedById String
+
+  @@unique([year, month])
+}
+
+model Meeting {
+  id                          String       @id @default(cuid())
+  projectId                   String
+  project                     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind                        MeetingKind
+  occurredAt                  DateTime     @default(now())
+  bodyText                    String       @db.Text
+  agendaGeneratedFromStateAt  DateTime?
+  createdById                 String?
+
+  proposals TranscriptProposal[]
+}
+
+model TranscriptProposal {
+  id              String         @id @default(cuid())
+  meetingId       String
+  meeting         Meeting        @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  sectionKind     SectionKind
+  targetId        String?        // e.g. specific section row id when applicable
+  proposedChange  Json
+  status          ProposalStatus @default(pending)
+  decidedById     String?
+  decidedAt       DateTime?
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind         String   // "link" | "upload"
+  urlOrKey     String
+  label        String
+  uploadedById String?
+  uploadedAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String
+  actor        User     @relation(fields: [actorUserId], references: [id])
+  entityType   String
+  entityId     String
+  action       String
+  before       Json?
+  after        Json?
+  at           DateTime @default(now())
+
+  @@index([entityType, entityId])
+}

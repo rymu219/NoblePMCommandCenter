@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/*
+ * Noble Plastics brand tokens. Locked to the official brand guidelines.
+ * Logo wordmark fonts (Forza Black, Museo Sans 900) are NOT used in the
+ * UI — they are wordmark-only per the guidelines. Marketing fonts are
+ * Museo Sans (sans) and Yorkten Slab (serif); Google fallbacks are
+ * Montserrat and Zilla Slab respectively.
+ */
+
+@theme inline {
+  /* Primary */
+  --color-noble-red: #cf202f;
+  --color-noble-gold: #ffcf01;
+  --color-noble-black: #111921;
+
+  /* Supplementary */
+  --color-noble-slate: #6d7c7c;
+  --color-noble-navy: #415465;
+  --color-noble-stone: #d5d2c5;
+  --color-noble-fog: #d9d8d6;
+  --color-noble-sand: #d7d1cb;
+  --color-noble-brick: #892432;
+
+  /* Role/department colors from the template */
+  --color-role-engineering: #534ab7;
+  --color-role-engineering-fill: #cecbf6;
+  --color-role-process: #0f6e56;
+  --color-role-process-fill: #9fe1cb;
+  --color-role-automation: #ba7517;
+  --color-role-automation-fill: #fac775;
+  --color-role-quality: #993c1d;
+  --color-role-quality-fill: #f5c4b3;
+
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-zilla-slab), ui-serif, Georgia, serif;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #111921;
+  --muted: #73726c;
+  --surface: #f5f4f0;
+  --border: rgba(17, 25, 33, 0.12);
+  --border-strong: rgba(17, 25, 33, 0.22);
+}
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Print rules — keep the look of the source template */
+@media print {
+  body { padding: 1cm; max-width: none; font-size: 11px; background: #fff; }
+  .no-print { display: none !important; }
+  .gantt-wrap { overflow-x: visible !important; }
+}

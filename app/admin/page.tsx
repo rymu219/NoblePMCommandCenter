@@ -44,13 +44,14 @@ export default async function AdminPage() {
           cta="Manage period close"
         />
         <AdminCard
-          title="Users & assignments"
-          description="Coming in v2 — manage users, departments, role hourly rates, and which engineers see which projects pre-listed in My Week."
-          disabled
+          title="Projects + engineer assignments"
+          description="Create new projects (Project # validated as XXX-XXX) and assign engineers to control which projects appear pre-listed on each engineer's My Week."
+          href="/admin/projects"
+          cta="Manage projects"
         />
         <AdminCard
-          title="Project create"
-          description="Coming in v2 — Project # format validated as XXX-XXX, optional sections toggled per project."
+          title="Users & hourly rates"
+          description="Coming next — manage users, departments, role hourly rates. Today the seed installs Ryan + 7 engineers + a Sales viewer."
           disabled
         />
       </div>

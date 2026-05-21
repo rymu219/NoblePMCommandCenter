@@ -49,7 +49,7 @@ export default async function ProjectPage({
 
   return (
     <article className="mx-auto w-full max-w-[960px] px-6 py-8">
-      <ProjectHeader project={project} />
+      <ProjectHeader project={project} isAdmin={user?.role === "admin"} />
 
       {/* Current Status — always at top */}
       <SectionShell title="Current status">

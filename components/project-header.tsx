@@ -1,7 +1,13 @@
 import type { ProjectRecord } from "@/lib/types";
 import Link from "next/link";
 
-export function ProjectHeader({ project }: { project: ProjectRecord }) {
+export function ProjectHeader({
+  project,
+  isAdmin,
+}: {
+  project: ProjectRecord;
+  isAdmin?: boolean;
+}) {
   return (
     <header className="mb-6 border-b border-[var(--border)] pb-4">
       <div className="flex items-baseline gap-3 text-xs text-[var(--muted)]">
@@ -20,6 +26,14 @@ export function ProjectHeader({ project }: { project: ProjectRecord }) {
         <span>Owner: {project.owner}</span>
         <span>·</span>
         <span>Last updated {project.lastUpdated}</span>
+        {isAdmin ? (
+          <Link
+            href={`/admin/projects/${project.projectNumber}`}
+            className="ml-auto rounded-md border border-[var(--border)] px-2 py-0.5 text-noble-black/70 no-print hover:bg-noble-stone/40"
+          >
+            Edit project
+          </Link>
+        ) : null}
       </div>
       <h1 className="mt-2 font-serif text-2xl font-medium leading-tight text-noble-black">
         {project.name}

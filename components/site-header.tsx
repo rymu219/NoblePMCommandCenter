@@ -4,11 +4,11 @@ import { NobleLogo } from "@/components/noble-logo";
 import { getCurrentUser, signOut } from "@/lib/auth";
 
 const NAV: Array<{ href: string; label: string; roles?: string[] }> = [
-  { href: "/", label: "Dashboard" },
+  { href: "/", label: "Daily Report" },
+  { href: "/reports", label: "Archive" },
   { href: "/programs", label: "Programs" },
   { href: "/projects", label: "Projects" },
   { href: "/my-week", label: "My Week", roles: ["engineer", "admin"] },
-  { href: "/meetings", label: "Meetings" },
   { href: "/admin", label: "Admin", roles: ["admin"] },
 ];
 

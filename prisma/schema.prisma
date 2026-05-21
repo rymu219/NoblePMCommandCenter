@@ -89,6 +89,8 @@ model ProjectRow {
   ganttTasks    GanttTask[]
   meetings      Meeting[]
   attachments   Attachment[]
+  statusUpdates StatusUpdate[]
+  actionItems   ActionItem[]
 }
 
 model ProjectAssignment {
@@ -229,4 +231,78 @@ model AuditLog {
   at           DateTime @default(now())
 
   @@index([entityType, entityId])
+}
+
+/// One narrative status update per project per reporting day.
+/// The latest update per project is what the Daily Tooling Report renders.
+model StatusUpdate {
+  id               String     @id @default(cuid())
+  projectId        String
+  project          ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportDate       DateTime   // the day this status describes
+  /// on_track | in_progress | at_risk | blocked | pending | complete
+  statusLabel      String
+  /// Free text — "Structured Delay", "External Pressure + Info Gap",
+  /// "Watch Capacity", "No payment", etc.
+  statusQualifier  String?
+  /// JSON-encoded array of `{heading: string, body: string}`.
+  blocks           String     @default("[]")
+  authorId         String?
+  createdAt        DateTime   @default(now())
+
+  actionItems ActionItem[]
+
+  @@index([projectId, reportDate])
+}
+
+/// Concrete action items grouped by owner department; populate the
+/// Follow-up List in the Daily Tooling Report.
+model ActionItem {
+  id              String        @id @default(cuid())
+  projectId       String
+  project         ProjectRow    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  statusUpdateId  String?
+  statusUpdate    StatusUpdate? @relation(fields: [statusUpdateId], references: [id], onDelete: SetNull)
+  /// engineering | quality | process | automation | program_pm | operations |
+  /// sales | purchasing | scheduling
+  ownerDept       String
+  ownerUserId     String?
+  body            String
+  dueDate         DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([projectId, completedAt])
+  @@index([ownerDept, completedAt])
+}
+
+/// Portfolio-level narrative for a specific reporting day.
+/// Priority Callout / Key Risks Summary / Forward-Looking Notes.
+model PortfolioNote {
+  id          String   @id @default(cuid())
+  reportDate  DateTime
+  /// priority_callout | key_risks | forward_looking
+  kind        String
+  body        String
+  authorId    String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([reportDate, kind])
+}
+
+/// Frozen, timestamped snapshot of a published report.
+model Report {
+  id             String   @id @default(cuid())
+  /// daily_tooling | executive_status
+  kind           String
+  reportDate     DateTime
+  /// null for daily (portfolio-wide); set for per-program reports.
+  programPrefix  String?
+  /// JSON-encoded snapshot of everything needed to re-render the report.
+  snapshot       String
+  publishedAt    DateTime @default(now())
+  authorId       String?
+
+  @@index([kind, reportDate])
 }

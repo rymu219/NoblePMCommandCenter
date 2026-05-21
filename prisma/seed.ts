@@ -205,12 +205,217 @@ async function main() {
     }
   }
 
+  // ── Sample StatusUpdates inspired by the user's Apr 16 Daily Tooling
+  // Report. Posted "today" so the dashboard has content on first load.
+  const today = new Date();
+  const todayUtc = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  );
+
+  type StatusSeed = {
+    projectId: string;
+    label: string;
+    qualifier?: string;
+    blocks: Array<{ heading: string; body: string }>;
+    actionItems?: Array<{ ownerDept: string; body: string }>;
+  };
+
+  const STATUS_SEEDS: StatusSeed[] = [
+    {
+      projectId: "647-004",
+      label: "in_progress",
+      qualifier: "Structured Delay",
+      blocks: [
+        {
+          heading: "Update",
+          body: "- Tool builder expects CAD: 4/21\n- Review turnaround ~1 day → expected return 4/23",
+        },
+        {
+          heading: "Impacts",
+          body: "- Internal alignment with Scott still required\n- Tool build start shifting to ~4/27 (from 4/20)",
+        },
+        {
+          heading: "Logistics",
+          body: "Prototype tool + 400 inserts must ship to builder by EOD Friday (4/17)",
+        },
+        {
+          heading: "Commercial",
+          body: "- Lead time still ~9 weeks (verbal)\n- Quote expected upon receipt of updated design",
+        },
+      ],
+      actionItems: [
+        { ownerDept: "engineering", body: "Align with Scott + finalize design path" },
+        { ownerDept: "program_pm", body: "Track Bulkhead shipment (tool + inserts by 4/17)" },
+      ],
+    },
+    {
+      projectId: "647-006",
+      label: "in_progress",
+      qualifier: "Controlled Slip",
+      blocks: [
+        {
+          heading: "Update",
+          body: "- Recut adjustments in progress\n- Original target: 4/17 release → now unlikely\n- Revised expectation: by 4/24 (still within 5/1 schedule)",
+        },
+      ],
+      actionItems: [
+        { ownerDept: "engineering", body: "Finalize Pigtail recut adjustments" },
+      ],
+    },
+    {
+      projectId: "663-002",
+      label: "at_risk",
+      qualifier: "External Pressure + Info Gap",
+      blocks: [
+        {
+          heading: "Update",
+          body: "No update from Byrne as of 1:30 PM (4/16)",
+        },
+        {
+          heading: "Customer",
+          body: '- Gordon requesting confirmation: "Is the tool in good shape for production?"\n- Response required',
+        },
+        {
+          heading: "Internal",
+          body: "- Awaiting Engineering input to respond\n- Byrne sampling still likely week of 4/20\n- Delrin material provided for validation",
+        },
+        {
+          heading: "Implications",
+          body: "- Tool return likely week of 4/27\n- Qualification required prior to production\n- 5/7 (200k parts) at risk",
+        },
+      ],
+      actionItems: [
+        { ownerDept: "engineering", body: "Provide input for Gordon customer response" },
+        { ownerDept: "program_pm", body: "Drive Gordon response (dependent on Engineering)" },
+        { ownerDept: "program_pm", body: "Monitor Byrne update" },
+      ],
+    },
+    {
+      projectId: "150-029",
+      label: "at_risk",
+      qualifier: "Requires Alignment",
+      blocks: [
+        {
+          heading: "Update",
+          body: "Engineering approved Quality data",
+        },
+        {
+          heading: "Issue",
+          body: "No alignment on:\n- FAI\n- next steps\n- what has been completed\n- delivery expectations",
+        },
+        {
+          heading: "Action",
+          body: "Escalation planned: Scott + Engineering + Quality (4/17)",
+        },
+      ],
+      actionItems: [
+        { ownerDept: "quality", body: "Align with Engineering on Spectra next steps" },
+        { ownerDept: "program_pm", body: "Coordinate Spectra escalation (4/17)" },
+      ],
+    },
+    {
+      projectId: "439-009",
+      label: "on_track",
+      blocks: [
+        {
+          heading: "Update",
+          body: "- No changes\n- On track for May delivery\n- Tariffs/duties still unknown",
+        },
+      ],
+    },
+    {
+      projectId: "501-001",
+      label: "blocked",
+      qualifier: "No payment, no engagement",
+      blocks: [
+        {
+          heading: "Update",
+          body: "No payment\nNo engagement",
+        },
+      ],
+    },
+    {
+      projectId: "692-001",
+      label: "pending",
+      blocks: [
+        {
+          heading: "Update",
+          body: "- Material arrival: 4/22\n- No formal engineer assigned (expected: Kenneth)",
+        },
+      ],
+    },
+  ];
+
+  // Wipe existing seed status updates for these projects, then recreate.
+  await prisma.actionItem.deleteMany({
+    where: { projectId: { in: STATUS_SEEDS.map((s) => s.projectId) } },
+  });
+  await prisma.statusUpdate.deleteMany({
+    where: { projectId: { in: STATUS_SEEDS.map((s) => s.projectId) } },
+  });
+  for (const s of STATUS_SEEDS) {
+    const su = await prisma.statusUpdate.create({
+      data: {
+        projectId: s.projectId,
+        reportDate: todayUtc,
+        statusLabel: s.label,
+        statusQualifier: s.qualifier ?? null,
+        blocks: JSON.stringify(s.blocks),
+        authorId: ryan.id,
+      },
+    });
+    for (const a of s.actionItems ?? []) {
+      await prisma.actionItem.create({
+        data: {
+          projectId: s.projectId,
+          statusUpdateId: su.id,
+          ownerDept: a.ownerDept,
+          body: a.body,
+        },
+      });
+    }
+  }
+
+  // Sample portfolio notes for today.
+  const PORTFOLIO_NOTES = [
+    {
+      kind: "priority_callout",
+      body:
+        "- Bulkhead timeline shifting due to design alignment + shipment requirements\n" +
+        "- Gordon tool awaiting Byrne update; customer actively requesting status → response required\n" +
+        "- Spectra requires escalation (Engineering + Quality alignment)\n" +
+        "- New: Dresser Crankshaft tool under inspection for potential damage",
+    },
+    {
+      kind: "forward_looking",
+      body:
+        "- Gordon likely requires immediate, carefully framed response\n" +
+        "- Bulkhead execution now dependent on tight coordination through 4/17–4/23 window\n" +
+        "- Spectra requires decisive alignment to regain control",
+    },
+  ];
+  for (const n of PORTFOLIO_NOTES) {
+    await prisma.portfolioNote.upsert({
+      where: { reportDate_kind: { reportDate: todayUtc, kind: n.kind } },
+      update: { body: n.body, authorId: ryan.id },
+      create: {
+        reportDate: todayUtc,
+        kind: n.kind,
+        body: n.body,
+        authorId: ryan.id,
+      },
+    });
+  }
+
   // eslint-disable-next-line no-console
   console.log("seed done:", {
     users: await prisma.user.count(),
     projects: await prisma.projectRow.count(),
     sections: await prisma.projectSection.count(),
     timeEntries: await prisma.timeEntry.count(),
+    statusUpdates: await prisma.statusUpdate.count(),
+    actionItems: await prisma.actionItem.count(),
+    portfolioNotes: await prisma.portfolioNote.count(),
   });
 }
 

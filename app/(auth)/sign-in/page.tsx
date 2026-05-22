@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { signIn, getCurrentUser } from "@/lib/auth";
+import { NobleLogoVertical } from "@/components/noble-logo";
 
 async function signInAction(formData: FormData) {
   "use server";
@@ -25,11 +26,14 @@ export default async function SignInPage({
 
   return (
     <div className="mx-auto flex min-h-[80vh] w-full max-w-sm flex-col justify-center px-6">
-      <h1 className="font-serif text-3xl font-medium text-noble-black">
-        Sign in
+      <div className="flex justify-center">
+        <NobleLogoVertical className="h-44 w-auto" />
+      </div>
+      <h1 className="mt-6 text-center font-serif text-2xl font-medium text-noble-black">
+        PM Command Center
       </h1>
-      <p className="mt-1 text-sm text-[var(--muted)]">
-        Noble PM Command Center.
+      <p className="mt-1 text-center text-sm text-[var(--muted)]">
+        Sign in to continue.
       </p>
       <form action={signInAction} className="mt-6 space-y-3">
         <label className="block">

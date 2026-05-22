@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { ProjectHeader } from "@/components/project-header";
 import { SectionShell } from "@/components/section-shell";
+import { SectionToggleBar } from "@/components/section-toggle-bar";
+import { SectionEdit } from "@/components/sections/section-edit";
 import { SummaryCardsSection } from "@/components/sections/summary-cards";
 import { PartsMaterialSection } from "@/components/sections/parts-material";
 import { HoursByRoleSection } from "@/components/sections/hours-by-role";
@@ -19,13 +21,52 @@ import { prisma } from "@/lib/prisma";
 import { deptDisplay } from "@/lib/status";
 import { StatusEditor } from "./status-editor";
 
+interface Toggles {
+  summary_cards: boolean;
+  parts_material: boolean;
+  hours_by_role: boolean;
+  gantt_overview: boolean;
+  gantt_detail: boolean;
+  risks_preconditions: boolean;
+  decisions_log: boolean;
+  notes_freeform: boolean;
+}
+
+function readToggles(
+  raw: string | null | undefined,
+  hasData: Partial<Toggles>
+): Toggles {
+  let parsed: Record<string, boolean> = {};
+  try {
+    parsed = JSON.parse(raw ?? "{}") as Record<string, boolean>;
+  } catch {
+    /* fall through to defaults */
+  }
+  const isEmpty = Object.keys(parsed).length === 0;
+  // Backward-compatible default: when no toggles have been saved yet,
+  // show any section that has data. Once the user explicitly saves
+  // toggles, those are authoritative.
+  const pick = (k: keyof Toggles): boolean =>
+    isEmpty ? !!hasData[k] : !!parsed[k];
+  return {
+    summary_cards: pick("summary_cards"),
+    parts_material: pick("parts_material"),
+    hours_by_role: pick("hours_by_role"),
+    gantt_overview: pick("gantt_overview"),
+    gantt_detail: pick("gantt_detail"),
+    risks_preconditions: pick("risks_preconditions"),
+    decisions_log: pick("decisions_log"),
+    notes_freeform: pick("notes_freeform"),
+  };
+}
+
 export default async function ProjectPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, latest, user, openItems] = await Promise.all([
+  const [project, latest, user, openItems, rowMeta] = await Promise.all([
     loadProject(id),
     loadLatestStatus(id),
     getCurrentUser(),
@@ -33,11 +74,28 @@ export default async function ProjectPage({
       where: { projectId: id, completedAt: null },
       orderBy: [{ ownerDept: "asc" }, { createdAt: "asc" }],
     }),
+    prisma.projectRow.findUnique({
+      where: { id },
+      select: { templateToggles: true, ownerId: true },
+    }),
   ]);
   if (!project) notFound();
 
   const s = project.sections;
-  const canEdit = user?.role === "admin" || user?.role === "engineer";
+  const isAdmin = user?.role === "admin";
+  const isOwner = user ? rowMeta?.ownerId === user.id : false;
+  const canEdit = isAdmin || isOwner;
+  const canManageToggles = isAdmin || isOwner;
+  const toggles = readToggles(rowMeta?.templateToggles, {
+    summary_cards: !!(s.summaryCards && s.summaryCards.length),
+    parts_material: !!(s.partsMaterial && s.partsMaterial.rows.length),
+    hours_by_role: !!(s.hoursByRole && s.hoursByRole.rows.length),
+    gantt_overview: !!(s.ganttOverview && s.ganttOverview.bars.length),
+    gantt_detail: !!(s.ganttDetail && s.ganttDetail.steps.length),
+    risks_preconditions: !!(s.risks && s.risks.length),
+    decisions_log: !!(s.decisions && s.decisions.length),
+    notes_freeform: !!(s.notes && s.notes.length),
+  });
 
   const itemsByDept = openItems.reduce<Record<string, typeof openItems>>(
     (acc, it) => {
@@ -49,7 +107,14 @@ export default async function ProjectPage({
 
   return (
     <article className="mx-auto w-full max-w-[960px] px-6 py-8">
-      <ProjectHeader project={project} isAdmin={user?.role === "admin"} />
+      <ProjectHeader project={project} isAdmin={isAdmin} />
+
+      {canManageToggles ? (
+        <SectionToggleBar
+          projectId={project.projectNumber}
+          enabled={toggles as unknown as { [k: string]: boolean }}
+        />
+      ) : null}
 
       {/* Current Status — always at top */}
       <SectionShell title="Current status">
@@ -115,33 +180,97 @@ export default async function ProjectPage({
         ) : null}
       </SectionShell>
 
-      {s.summaryCards ? (
+      {toggles.summary_cards ? (
         <SectionShell title="Summary">
-          <SummaryCardsSection rows={s.summaryCards} />
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="summary_cards"
+            initial={s.summaryCards ?? []}
+            canEdit={canEdit}
+          >
+            {s.summaryCards && s.summaryCards.length > 0 ? (
+              <SummaryCardsSection rows={s.summaryCards} />
+            ) : (
+              <EmptyState text="No summary cards yet — click Edit to add." />
+            )}
+          </SectionEdit>
         </SectionShell>
       ) : null}
 
-      {s.partsMaterial ? (
+      {toggles.parts_material ? (
         <SectionShell title="Parts & material by run">
-          <PartsMaterialSection rows={s.partsMaterial.rows} />
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="parts_material"
+            initial={s.partsMaterial?.rows ?? []}
+            canEdit={canEdit}
+          >
+            {s.partsMaterial && s.partsMaterial.rows.length > 0 ? (
+              <PartsMaterialSection rows={s.partsMaterial.rows} />
+            ) : (
+              <EmptyState text="No runs logged yet — click Edit to add." />
+            )}
+          </SectionEdit>
         </SectionShell>
       ) : null}
 
-      {s.hoursByRole ? (
+      {toggles.hours_by_role ? (
         <SectionShell title="Hours by role">
-          <HoursByRoleSection rows={s.hoursByRole.rows} />
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="hours_by_role"
+            initial={s.hoursByRole?.rows ?? []}
+            canEdit={canEdit}
+          >
+            {s.hoursByRole && s.hoursByRole.rows.length > 0 ? (
+              <HoursByRoleSection rows={s.hoursByRole.rows} />
+            ) : (
+              <EmptyState text="No hours logged yet — click Edit to add." />
+            )}
+          </SectionEdit>
         </SectionShell>
       ) : null}
 
-      {s.ganttOverview ? (
+      {toggles.gantt_overview ? (
         <SectionShell title="Gantt — schedule overview">
-          <GanttOverview {...s.ganttOverview} />
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="gantt_overview"
+            initial={
+              s.ganttOverview ?? { totalWeeks: 12, bars: [], gates: [] }
+            }
+            canEdit={canEdit}
+          >
+            {s.ganttOverview && s.ganttOverview.bars.length > 0 ? (
+              <GanttOverview {...s.ganttOverview} />
+            ) : (
+              <EmptyState text="No Gantt bars yet — click Edit to lay out the schedule." />
+            )}
+          </SectionEdit>
         </SectionShell>
       ) : null}
 
-      {s.ganttDetail ? (
+      {toggles.gantt_detail ? (
         <SectionShell title="Part requalification — sequential detail (day / hour scale)">
-          <GanttDetail {...s.ganttDetail} />
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="gantt_detail"
+            initial={
+              s.ganttDetail ?? {
+                totalDays: 3,
+                workingStartHour: 8,
+                workingEndHour: 17,
+                steps: [],
+              }
+            }
+            canEdit={canEdit}
+          >
+            {s.ganttDetail && s.ganttDetail.steps.length > 0 ? (
+              <GanttDetail {...s.ganttDetail} />
+            ) : (
+              <EmptyState text="No hour-scale steps yet — click Edit to add." />
+            )}
+          </SectionEdit>
         </SectionShell>
       ) : null}
 
@@ -149,21 +278,65 @@ export default async function ProjectPage({
         <Legend />
       </SectionShell>
 
-      {s.risks ? (
+      {toggles.risks_preconditions ? (
         <SectionShell title="Risks & pre-conditions">
-          <RisksSection items={s.risks} />
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="risks_preconditions"
+            initial={s.risks ?? []}
+            canEdit={canEdit}
+          >
+            {s.risks && s.risks.length > 0 ? (
+              <RisksSection items={s.risks} />
+            ) : (
+              <EmptyState text="No risks or pre-conditions yet — click Edit to add." />
+            )}
+          </SectionEdit>
         </SectionShell>
       ) : null}
 
-      <SectionShell title="Decisions log">
-        <DecisionsSection items={s.decisions ?? []} />
-      </SectionShell>
+      {toggles.decisions_log ? (
+        <SectionShell title="Decisions log">
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="decisions_log"
+            initial={s.decisions ?? []}
+            defaultAuthor={user?.name}
+            canEdit={canEdit}
+          >
+            {s.decisions && s.decisions.length > 0 ? (
+              <DecisionsSection items={s.decisions} />
+            ) : (
+              <EmptyState text="No decisions logged yet — click Edit to record one." />
+            )}
+          </SectionEdit>
+        </SectionShell>
+      ) : null}
 
-      {s.notes && s.notes.length > 0 ? (
+      {toggles.notes_freeform ? (
         <SectionShell title="Notes">
-          <NotesBlock blocks={s.notes} />
+          <SectionEdit
+            projectId={project.projectNumber}
+            kind="notes_freeform"
+            initial={s.notes ?? []}
+            canEdit={canEdit}
+          >
+            {s.notes && s.notes.length > 0 ? (
+              <NotesBlock blocks={s.notes} />
+            ) : (
+              <EmptyState text="No notes yet — click Edit to capture anything off-template." />
+            )}
+          </SectionEdit>
         </SectionShell>
       ) : null}
     </article>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <p className="rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/60 px-3 py-3 text-sm text-[var(--muted)]">
+      {text}
+    </p>
   );
 }

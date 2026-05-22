@@ -23,6 +23,17 @@ export const metadata: Metadata = {
     "Project command center for Noble Plastics. Programs, projects, time tracking, schedules.",
 };
 
+/*
+ * Force dynamic rendering for every page. The app is entirely
+ * data-driven (every page reads the DB and/or the user's session
+ * cookie); none of it benefits from static pre-rendering. Setting
+ * `dynamic = "force-dynamic"` on the root layout cascades to every
+ * route, and also keeps `next build` from trying to call Prisma at
+ * build time (which would require DATABASE_URL to be set during the
+ * build step on Railway).
+ */
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{

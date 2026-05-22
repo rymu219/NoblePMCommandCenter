@@ -76,6 +76,16 @@ model ProjectRow {
   targetEndDate     DateTime?
   budgetTotal       Float?
   spentTotal        Float?
+  committedTotal    Float?
+  forecastTotal     Float?
+  /// Free-text caption for the dashboard "headroom" card subline.
+  headroomNote      String?
+  /// Free-text qualifier for the dashboard "next trigger" line.
+  nextTrigger       String?
+  /// Free-text "key milestone" line on the dashboard footer strip.
+  keyMilestone      String?
+  /// On-track | At Risk | Off Track — used by the dashboard's hero pill.
+  dashboardHealth   String?
   /// JSON: which optional sections are enabled. Stored as TEXT on SQLite.
   templateToggles   String              @default("{}")
   lastUpdatedAt     DateTime            @updatedAt
@@ -91,6 +101,40 @@ model ProjectRow {
   attachments   Attachment[]
   statusUpdates StatusUpdate[]
   actionItems   ActionItem[]
+  phases        Phase[]
+  budgetTracks  BudgetTrack[]
+}
+
+/// Multi-month phase row that drives the Program Dashboard mini-Gantt.
+/// Distinct from GanttTask which is week-grain for the planning Gantt.
+model Phase {
+  id        String     @id @default(cuid())
+  projectId String
+  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  /// slate | blue | purple | yellow | red — selects a fill color.
+  color     String     @default("slate")
+  /// Display order on the chart.
+  position  Int        @default(0)
+  /// Marks the current phase (label highlighted yellow on the dashboard).
+  isCurrent Boolean    @default(false)
+
+  @@index([projectId, position])
+}
+
+/// One segment of the stacked Budget Detail bar on the Program Dashboard.
+model BudgetTrack {
+  id        String     @id @default(cuid())
+  projectId String
+  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  amount    Float
+  color     String     @default("slate")
+  position  Int        @default(0)
+
+  @@index([projectId, position])
 }
 
 model ProjectAssignment {

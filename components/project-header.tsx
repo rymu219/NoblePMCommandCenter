@@ -26,10 +26,16 @@ export function ProjectHeader({
         <span>Owner: {project.owner}</span>
         <span>·</span>
         <span>Last updated {project.lastUpdated}</span>
+        <Link
+          href={`/projects/${project.projectNumber}/dashboard`}
+          className="ml-auto rounded-md border border-[var(--border)] px-2 py-0.5 text-noble-black/70 no-print hover:bg-noble-stone/40"
+        >
+          Program dashboard →
+        </Link>
         {isAdmin ? (
           <Link
             href={`/admin/projects/${project.projectNumber}`}
-            className="ml-auto rounded-md border border-[var(--border)] px-2 py-0.5 text-noble-black/70 no-print hover:bg-noble-stone/40"
+            className="rounded-md border border-[var(--border)] px-2 py-0.5 text-noble-black/70 no-print hover:bg-noble-stone/40"
           >
             Edit project
           </Link>

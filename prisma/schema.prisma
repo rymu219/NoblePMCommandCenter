@@ -52,12 +52,16 @@ model Session {
 
 /// Programs are derived from the prefix on each Project #.
 model Program {
-  prefix       String       @id // e.g. "647"
-  name         String?
-  customer     String?
-  contactEmail String?
-  createdAt    DateTime     @default(now())
-  projects     ProjectRow[]
+  prefix         String       @id // e.g. "647"
+  name           String?
+  customer       String?
+  contactEmail   String?
+  /// Free-text executive summary that opens the Executive Status Report.
+  execSummary    String?
+  /// Free-text "decisions needed from customer" block on the report.
+  decisionsAsked String?
+  createdAt      DateTime     @default(now())
+  projects       ProjectRow[]
 }
 
 /// "Project" is a reserved-feel name; Prisma is happy either way. Using

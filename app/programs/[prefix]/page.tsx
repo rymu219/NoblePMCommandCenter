@@ -29,13 +29,23 @@ export default async function ProgramPage({
           ← All programs
         </Link>
       </div>
-      <h1 className="mt-2 font-serif text-3xl font-medium text-noble-black">
-        Program <span className="font-mono tracking-wider">{prefix}-</span>
-      </h1>
-      <p className="mt-1 text-sm text-[var(--muted)]">
-        {program.projects.length} project
-        {program.projects.length === 1 ? "" : "s"} · {totalHours} hours logged
-      </p>
+      <div className="mt-2 flex items-end justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl font-medium text-noble-black">
+            Program <span className="font-mono tracking-wider">{prefix}-</span>
+          </h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            {program.projects.length} project
+            {program.projects.length === 1 ? "" : "s"} · {totalHours} hours logged
+          </p>
+        </div>
+        <Link
+          href={`/programs/${prefix}/executive-status`}
+          className="rounded-md bg-noble-black px-3 py-1.5 text-xs font-medium text-white hover:bg-noble-black/85"
+        >
+          Executive status report →
+        </Link>
+      </div>
       <ul className="mt-6 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-white">
         {program.projects.map((p) => {
           const hrs = p.timeEntries.reduce((s, e) => s + e.hours, 0);

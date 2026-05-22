@@ -1,12 +1,12 @@
 // Noble PM Command Center — data model.
 //
-// Dev DB: SQLite (file:./dev.db). The schema avoids Postgres-only
-// annotations so the same schema works in development and (with a
-// provider change) on managed Postgres in production.
+// Production DB: Postgres (Railway-managed). The DATABASE_URL env var
+// drives the connection string. Local dev points at the same DB or a
+// local Postgres in Docker.
 //
-// Enums are represented as plain string fields because SQLite's Prisma
-// driver does not support enum types. The acceptable values are
-// documented next to each field.
+// Enums are represented as plain string fields with the acceptable
+// values documented next to each field — kept as String for now to
+// minimise migration churn; can be promoted to native enums later.
 
 generator client {
   provider = "prisma-client-js"
@@ -14,7 +14,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {

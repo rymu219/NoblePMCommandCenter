@@ -7,6 +7,8 @@ export default defineConfig({
     path: path.join("prisma", "migrations"),
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
+    url:
+      process.env.DATABASE_URL ??
+      "postgresql://noble:noble@localhost:5432/noble_pm",
   },
 });

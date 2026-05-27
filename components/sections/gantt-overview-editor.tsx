@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import type { GanttBar, GanttGate } from "@/lib/types";
-import { ROLE_META } from "@/lib/types";
+import { ROLE_META, buildGanttLegend } from "@/lib/types";
 import { AddRowButton, RemoveRowButton, SectionButtons } from "./section-buttons";
+import { Legend } from "./legend";
 
 interface BarRow extends GanttBar {
   id: number;
@@ -203,6 +204,15 @@ export function GanttOverviewEditor({ initial, submit, busy, cancel }: Props) {
         ))}
       </div>
       <AddRowButton onClick={addGate} label="Add gate" />
+
+      <div className="mt-5 rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/40 p-3">
+        <div className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+          Legend preview — builds from the bars above
+        </div>
+        <div className="mt-2">
+          <Legend items={buildGanttLegend(bars, [])} />
+        </div>
+      </div>
 
       <SectionButtons
         busy={busy}

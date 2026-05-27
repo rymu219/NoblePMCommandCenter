@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import type { SequentialStep } from "@/lib/types";
+import { buildGanttLegend } from "@/lib/types";
 import { AddRowButton, RemoveRowButton, SectionButtons } from "./section-buttons";
+import { Legend } from "./legend";
 
 interface Row extends SequentialStep {
   id: number;
@@ -205,6 +207,23 @@ export function GanttDetailEditor({ initial, submit, busy, cancel }: Props) {
         ))}
       </div>
       <AddRowButton onClick={add} label="Add step" />
+
+      <div className="mt-5 rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/40 p-3">
+        <div className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+          Legend preview — builds from the steps above
+        </div>
+        <div className="mt-2">
+          <Legend
+            items={buildGanttLegend(
+              [],
+              rows.map((r) => ({
+                ...r,
+                kind: (r.hatch ? "cure" : "process") as SequentialStep["kind"],
+              }))
+            )}
+          />
+        </div>
+      </div>
 
       <SectionButtons
         busy={busy}

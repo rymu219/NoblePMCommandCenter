@@ -8,6 +8,7 @@ import {
   STATUS_LABELS,
   type StatusBlock,
 } from "@/lib/status";
+import { SaveError } from "@/components/save-error";
 
 interface BlockEdit extends StatusBlock {
   id: number;
@@ -260,11 +261,7 @@ export function StatusEditor({
         </div>
       </div>
 
-      {err ? (
-        <p className="mt-3 rounded-md bg-noble-red/10 px-3 py-1.5 text-xs text-noble-red">
-          {err}
-        </p>
-      ) : null}
+      <SaveError message={err} />
 
       <div className="mt-5 flex justify-end gap-2">
         <button

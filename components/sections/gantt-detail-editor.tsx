@@ -6,12 +6,27 @@ import { AddRowButton, RemoveRowButton, SectionButtons } from "./section-buttons
 
 interface Row extends SequentialStep {
   id: number;
+  color: string;
+  category: string;
+  hatch: boolean;
 }
 
 let _id = 1;
 const nextId = () => _id++;
 
-const KINDS: SequentialStep["kind"][] = ["process", "quality", "cure"];
+// Defaults derived from the legacy kind so existing steps edit cleanly.
+function stepColorOf(s: SequentialStep): string {
+  if (s.color) return s.color;
+  if (s.kind === "quality") return "#993C1D";
+  if (s.kind === "cure") return "#888780";
+  return "#BA7517"; // process / setup
+}
+function stepCategoryOf(s: SequentialStep): string {
+  if (s.category) return s.category;
+  if (s.kind === "quality") return "Quality";
+  if (s.kind === "cure") return "Cure hold";
+  return "Process";
+}
 
 interface Props {
   initial: {
@@ -31,8 +46,24 @@ export function GanttDetailEditor({ initial, submit, busy, cancel }: Props) {
   const [endHour, setEndHour] = useState(initial.workingEndHour || 17);
   const [rows, setRows] = useState<Row[]>(
     initial.steps.length
-      ? initial.steps.map((s) => ({ ...s, id: nextId() }))
-      : [{ id: nextId(), label: "", startHour: 0, durationHours: 1, kind: "process" }]
+      ? initial.steps.map((s) => ({
+          ...s,
+          id: nextId(),
+          color: stepColorOf(s),
+          category: stepCategoryOf(s),
+          hatch: s.kind === "cure",
+        }))
+      : [
+          {
+            id: nextId(),
+            label: "",
+            startHour: 0,
+            durationHours: 1,
+            color: "#BA7517",
+            category: "Process",
+            hatch: false,
+          },
+        ]
   );
 
   function update(id: number, patch: Partial<Row>) {
@@ -50,7 +81,9 @@ export function GanttDetailEditor({ initial, submit, busy, cancel }: Props) {
         label: "",
         startHour: last ? last.startHour + last.durationHours : 0,
         durationHours: 1,
-        kind: "process",
+        color: last?.color ?? "#BA7517",
+        category: last?.category ?? "Process",
+        hatch: false,
       },
     ]);
   }
@@ -112,7 +145,7 @@ export function GanttDetailEditor({ initial, submit, busy, cancel }: Props) {
         {rows.map((r) => (
           <div
             key={r.id}
-            className="grid grid-cols-[1fr_140px_100px_100px_auto] items-center gap-2"
+            className="grid grid-cols-[1fr_120px_44px_auto_90px_90px_auto] items-center gap-2"
           >
             <input
               value={r.label}
@@ -120,19 +153,33 @@ export function GanttDetailEditor({ initial, submit, busy, cancel }: Props) {
               placeholder="Step label"
               className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-sm"
             />
-            <select
-              value={r.kind}
-              onChange={(e) =>
-                update(r.id, { kind: e.target.value as SequentialStep["kind"] })
-              }
-              className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs"
+            <input
+              value={r.category}
+              onChange={(e) => update(r.id, { category: e.target.value })}
+              placeholder="Category / dept"
+              title="Legend label for this color"
+              disabled={r.hatch}
+              className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs disabled:opacity-50"
+              style={{ borderLeftColor: r.color, borderLeftWidth: 4 }}
+            />
+            <input
+              type="color"
+              value={r.color}
+              onChange={(e) => update(r.id, { color: e.target.value })}
+              title="Step color"
+              className="h-7 w-full cursor-pointer rounded-md border border-[var(--border)] bg-white p-0.5"
+            />
+            <label
+              className="inline-flex items-center gap-1 text-[11px] text-noble-black/70"
+              title="Render as a hatched mold-in-press / cure band"
             >
-              {KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
+              <input
+                type="checkbox"
+                checked={r.hatch}
+                onChange={(e) => update(r.id, { hatch: e.target.checked })}
+              />
+              Cure
+            </label>
             <input
               type="number"
               min={0}
@@ -169,7 +216,15 @@ export function GanttDetailEditor({ initial, submit, busy, cancel }: Props) {
             workingEndHour: endHour,
             steps: rows
               .filter((r) => r.label.trim())
-              .map(({ id: _id, ...rest }) => rest),
+              .map((r) => ({
+                label: r.label,
+                startHour: r.startHour,
+                durationHours: r.durationHours,
+                color: r.color,
+                category: r.category,
+                kind: (r.hatch ? "cure" : "process") as SequentialStep["kind"],
+                ...(r.note ? { note: r.note } : {}),
+              })),
           })
         }
       />

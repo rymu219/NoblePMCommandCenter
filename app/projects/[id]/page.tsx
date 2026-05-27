@@ -14,6 +14,7 @@ import { NotesBlock } from "@/components/sections/notes-block";
 import { Legend } from "@/components/sections/legend";
 import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
+import { buildGanttLegend } from "@/lib/types";
 import { loadProject } from "@/lib/project-loader";
 import { loadLatestStatus } from "@/lib/status-loader";
 import { getCurrentUser } from "@/lib/auth";
@@ -245,9 +246,13 @@ export default async function ProjectPage({
         </SectionShell>
       ) : null}
 
-      <SectionShell title="Legend">
-        <Legend />
-      </SectionShell>
+      {toggles.gantt_overview || toggles.gantt_detail ? (
+        <SectionShell title="Legend">
+          <Legend
+            items={buildGanttLegend(s.ganttOverview?.bars, s.ganttDetail?.steps)}
+          />
+        </SectionShell>
+      ) : null}
 
       {toggles.risks_preconditions ? (
         <SectionShell title="Risks & pre-conditions">

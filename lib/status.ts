@@ -113,6 +113,32 @@ export function deptDisplay(d: string) {
   return OWNER_DEPTS.find((x) => x.value === d)?.display ?? d;
 }
 
+/** Department vocabulary for User records (roster). Superset of OWNER_DEPTS. */
+export const USER_DEPARTMENTS: Array<{ value: string; display: string }> = [
+  { value: "engineering", display: "Engineering" },
+  { value: "quality", display: "Quality" },
+  { value: "process", display: "Process" },
+  { value: "automation", display: "Automation" },
+  { value: "operations", display: "Operations" },
+  { value: "program_pm", display: "Program / PM" },
+  { value: "sales", display: "Sales" },
+  { value: "purchasing", display: "Purchasing" },
+  { value: "scheduling", display: "Scheduling" },
+  { value: "management", display: "Management" },
+  { value: "admin", display: "Admin" },
+];
+
+export function userDeptDisplay(d: string) {
+  return USER_DEPARTMENTS.find((x) => x.value === d)?.display ?? d;
+}
+
+/** App permission roles. */
+export const USER_ROLES: Array<{ value: string; display: string }> = [
+  { value: "admin", display: "Admin" },
+  { value: "engineer", display: "Engineer" },
+  { value: "viewer", display: "Viewer" },
+];
+
 export interface StatusBlock {
   heading: string;
   body: string;

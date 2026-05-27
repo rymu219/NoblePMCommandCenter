@@ -50,9 +50,10 @@ export default async function AdminPage() {
           cta="Manage projects"
         />
         <AdminCard
-          title="Users & hourly rates"
-          description="Coming next — manage users, departments, role hourly rates. Today the seed installs Ryan + 7 engineers + a Sales viewer."
-          disabled
+          title="Roster"
+          description="Add people and edit their name, job title, department, role, and hourly rate. New people get the default password to change on first sign-in."
+          href="/admin/users"
+          cta="Manage roster"
         />
       </div>
     </div>

@@ -8,6 +8,8 @@ import {
 import { listProjectsForDashboard } from "@/lib/project-loader";
 import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
+import { PortfolioDashboard } from "@/components/portfolio-dashboard";
+import { loadPortfolioMetrics } from "@/lib/dashboard-metrics";
 import { deptDisplay, statusMeta } from "@/lib/status";
 import { PortfolioNote } from "./portfolio-note";
 import { PublishButton } from "./publish-button";
@@ -36,6 +38,7 @@ export default async function DailyReportDashboard() {
     loadPortfolioNotes(today),
     listProjectsForDashboard(),
   ]);
+  const metrics = await loadPortfolioMetrics(portfolio, followups);
 
   const canEdit = user?.role === "admin" || user?.role === "engineer";
   const isAdmin = user?.role === "admin";
@@ -97,6 +100,9 @@ export default async function DailyReportDashboard() {
           {isAdmin ? <PublishButton snapshot={snapshot} /> : null}
         </div>
       </div>
+
+      {/* DASHBOARD STRIP — derived metrics, screen-only (above the narrative) */}
+      <PortfolioDashboard m={metrics} />
 
       {/* PRIORITY CALLOUT */}
       <ReportSection title="Priority Callout">

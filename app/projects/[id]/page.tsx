@@ -15,8 +15,10 @@ import { Legend } from "@/components/sections/legend";
 import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
 import { StatusSkeletonHeader } from "@/components/status-skeleton";
+import { ProjectMetricsPanel } from "@/components/project-metrics-panel";
 import { loadProject } from "@/lib/project-loader";
 import { loadLatestStatus } from "@/lib/status-loader";
+import { loadProjectMetrics } from "@/lib/project-metrics";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { deptDisplay } from "@/lib/status";
@@ -67,7 +69,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, latest, user, openItems, rowMeta] = await Promise.all([
+  const [project, latest, user, openItems, rowMeta, metrics] = await Promise.all([
     loadProject(id),
     loadLatestStatus(id),
     getCurrentUser(),
@@ -79,6 +81,7 @@ export default async function ProjectPage({
       where: { id },
       select: { templateToggles: true, ownerId: true },
     }),
+    loadProjectMetrics(id),
   ]);
   if (!project) notFound();
 
@@ -190,6 +193,11 @@ export default async function ProjectPage({
             <StatusEditor projectId={project.projectNumber} />
           </div>
         ) : null}
+      </SectionShell>
+
+      {/* At-a-glance metrics — derived, screen-only, above the sections */}
+      <SectionShell title="At a glance">
+        <ProjectMetricsPanel m={metrics} />
       </SectionShell>
 
       {toggles.summary_cards ? (

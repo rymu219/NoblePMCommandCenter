@@ -10,7 +10,7 @@ import { listProjectsForDashboard } from "@/lib/project-loader";
 import { AttentionStrip } from "@/components/attention-strip";
 import { PageContainer } from "@/components/page-container";
 import { StatusPill } from "@/components/status-pill";
-import { StatusBlocks } from "@/components/status-blocks";
+import { StatusSummary } from "@/components/status-summary";
 import { deptDisplay, statusMeta } from "@/lib/status";
 import { PortfolioNote } from "./portfolio-note";
 import { PublishButton } from "./publish-button";
@@ -155,7 +155,7 @@ export default async function DailyReportDashboard() {
                   />
                 </header>
                 <div className="mt-3">
-                  <StatusBlocks blocks={p.status!.blocks} />
+                  <StatusSummary blocks={p.status!.blocks} />
                 </div>
                 <div className="mt-3 text-[10px] text-[var(--muted)]">
                   Reported {p.status!.reportDate.toISOString().slice(0, 10)}

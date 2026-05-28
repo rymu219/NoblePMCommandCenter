@@ -51,6 +51,26 @@ export async function saveStatusUpdateAction(
     String(formData.get("statusQualifier") ?? "").trim() || null;
   const reportDate = parseDateOrToday(String(formData.get("reportDate") ?? ""));
 
+  // Skeleton header — all optional. Confidence values are constrained to a
+  // small vocabulary; anything else (incl. "") is stored as null.
+  const pickOne = (raw: string, allowed: string[]): string | null => {
+    const v = raw.trim();
+    return allowed.includes(v) ? v : null;
+  };
+  const scheduleConfidence = pickOne(
+    String(formData.get("scheduleConfidence") ?? ""),
+    ["ahead", "on_track", "slipping", "late"]
+  );
+  const budgetConfidence = pickOne(
+    String(formData.get("budgetConfidence") ?? ""),
+    ["under", "on", "over"]
+  );
+  const nextMilestone =
+    String(formData.get("nextMilestone") ?? "").trim() || null;
+  const nextMilestoneRaw = String(formData.get("nextMilestoneDate") ?? "").trim();
+  const nextMilestoneDate = nextMilestoneRaw ? new Date(nextMilestoneRaw) : null;
+  const topFocus = String(formData.get("topFocus") ?? "").trim() || null;
+
   const payloadRaw = String(formData.get("payload") ?? "{}");
   let payload: { blocks?: StatusBlockInput[]; actionItems?: ActionItemInput[] } =
     {};
@@ -73,6 +93,14 @@ export async function saveStatusUpdateAction(
         reportDate,
         statusLabel,
         statusQualifier,
+        scheduleConfidence,
+        budgetConfidence,
+        nextMilestone,
+        nextMilestoneDate:
+          nextMilestoneDate && !Number.isNaN(nextMilestoneDate.getTime())
+            ? nextMilestoneDate
+            : null,
+        topFocus,
         blocks: JSON.stringify(blocks),
         authorId: user.id,
       },
@@ -99,6 +127,11 @@ export async function saveStatusUpdateAction(
           projectId,
           statusLabel,
           statusQualifier,
+          scheduleConfidence,
+          budgetConfidence,
+          nextMilestone,
+          nextMilestoneDate: nextMilestoneDate?.toISOString() ?? null,
+          topFocus,
           reportDate: reportDate.toISOString(),
           blocks,
           actionItemCount: actionItems.length,

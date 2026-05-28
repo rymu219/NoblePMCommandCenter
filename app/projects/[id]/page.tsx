@@ -14,6 +14,7 @@ import { NotesBlock } from "@/components/sections/notes-block";
 import { Legend } from "@/components/sections/legend";
 import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
+import { StatusSkeletonHeader } from "@/components/status-skeleton";
 import { loadProject } from "@/lib/project-loader";
 import { loadLatestStatus } from "@/lib/status-loader";
 import { getCurrentUser } from "@/lib/auth";
@@ -132,6 +133,17 @@ export default async function ProjectPage({
                   {latest.authorName ? ` · ${latest.authorName}` : ""}
                 </div>
               </div>
+            </div>
+            <div className="mt-4">
+              <StatusSkeletonHeader
+                skeleton={{
+                  scheduleConfidence: latest.scheduleConfidence,
+                  budgetConfidence: latest.budgetConfidence,
+                  nextMilestone: latest.nextMilestone,
+                  nextMilestoneDate: latest.nextMilestoneDate,
+                  topFocus: latest.topFocus,
+                }}
+              />
             </div>
             <div className="mt-4">
               <StatusBlocks blocks={latest.blocks} />

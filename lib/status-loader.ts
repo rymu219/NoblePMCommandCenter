@@ -6,6 +6,11 @@ export interface LatestStatus {
   reportDate: Date;
   label: string;
   qualifier: string | null;
+  scheduleConfidence: string | null;
+  budgetConfidence: string | null;
+  nextMilestone: string | null;
+  nextMilestoneDate: Date | null;
+  topFocus: string | null;
   blocks: StatusBlock[];
   authorName: string | null;
   createdAt: Date;
@@ -27,6 +32,11 @@ export async function loadLatestStatus(projectId: string): Promise<LatestStatus 
     reportDate: row.reportDate,
     label: row.statusLabel,
     qualifier: row.statusQualifier,
+    scheduleConfidence: row.scheduleConfidence,
+    budgetConfidence: row.budgetConfidence,
+    nextMilestone: row.nextMilestone,
+    nextMilestoneDate: row.nextMilestoneDate,
+    topFocus: row.topFocus,
     blocks: parseBlocks(row.blocks),
     authorName,
     createdAt: row.createdAt,
@@ -71,6 +81,11 @@ export async function loadPortfolio(): Promise<ProgramGroup[]> {
             reportDate: latest.reportDate,
             label: latest.statusLabel,
             qualifier: latest.statusQualifier,
+            scheduleConfidence: latest.scheduleConfidence,
+            budgetConfidence: latest.budgetConfidence,
+            nextMilestone: latest.nextMilestone,
+            nextMilestoneDate: latest.nextMilestoneDate,
+            topFocus: latest.topFocus,
             blocks: parseBlocks(latest.blocks),
             authorName: null,
             createdAt: latest.createdAt,

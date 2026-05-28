@@ -293,6 +293,19 @@ model StatusUpdate {
   /// Free text — "Structured Delay", "External Pressure + Info Gap",
   /// "Watch Capacity", "No payment", etc.
   statusQualifier  String?
+  /// Lightweight structured "skeleton" captured alongside the narrative so
+  /// updates are comparable and trend-able across projects/weeks. All
+  /// nullable — older rows simply read as "—" and nothing breaks.
+  /// ahead | on_track | slipping | late
+  scheduleConfidence String?
+  /// under | on | over
+  budgetConfidence   String?
+  /// Free-text name of the next milestone (e.g. "Mold ship", "First article").
+  nextMilestone      String?
+  /// Target date for the next milestone.
+  nextMilestoneDate  DateTime?
+  /// One-line top focus / current top blocker.
+  topFocus           String?
   /// JSON-encoded array of `{heading: string, body: string}`.
   blocks           String     @default("[]")
   authorId         String?

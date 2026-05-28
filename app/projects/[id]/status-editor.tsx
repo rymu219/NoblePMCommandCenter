@@ -3,8 +3,10 @@
 import { useState, useTransition } from "react";
 import { saveStatusUpdateAction } from "./status-actions";
 import {
+  BUDGET_CONFIDENCE,
   COMMON_BLOCK_HEADINGS,
   OWNER_DEPTS,
+  SCHEDULE_CONFIDENCE,
   STATUS_LABELS,
   type StatusBlock,
 } from "@/lib/status";
@@ -40,6 +42,11 @@ export function StatusEditor({
   const [qualifier, setQualifier] = useState(defaultQualifier ?? "");
   const today = new Date().toISOString().slice(0, 10);
   const [reportDate, setReportDate] = useState(defaultReportDate ?? today);
+  const [scheduleConfidence, setScheduleConfidence] = useState("");
+  const [budgetConfidence, setBudgetConfidence] = useState("");
+  const [nextMilestone, setNextMilestone] = useState("");
+  const [nextMilestoneDate, setNextMilestoneDate] = useState("");
+  const [topFocus, setTopFocus] = useState("");
   const [blocks, setBlocks] = useState<BlockEdit[]>([
     { id: nextId(), heading: "Update", body: "" },
   ]);
@@ -78,6 +85,11 @@ export function StatusEditor({
     fd.set("statusLabel", label);
     fd.set("statusQualifier", qualifier);
     fd.set("reportDate", reportDate);
+    fd.set("scheduleConfidence", scheduleConfidence);
+    fd.set("budgetConfidence", budgetConfidence);
+    fd.set("nextMilestone", nextMilestone);
+    fd.set("nextMilestoneDate", nextMilestoneDate);
+    fd.set("topFocus", topFocus);
     fd.set(
       "payload",
       JSON.stringify({
@@ -99,6 +111,11 @@ export function StatusEditor({
         setOpen(false);
         setBlocks([{ id: nextId(), heading: "Update", body: "" }]);
         setActions([]);
+        setScheduleConfidence("");
+        setBudgetConfidence("");
+        setNextMilestone("");
+        setNextMilestoneDate("");
+        setTopFocus("");
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Save failed.");
       } finally {
@@ -157,6 +174,82 @@ export function StatusEditor({
             type="date"
             value={reportDate}
             onChange={(e) => setReportDate(e.target.value)}
+            className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+          />
+        </label>
+      </div>
+
+      {/* Skeleton header — fast structured fields that drive the dashboard. */}
+      <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--surface)]/40 p-3">
+        <div className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+          Quick read <span className="font-normal normal-case text-[var(--muted)]">— ~15s, powers the dashboard</span>
+        </div>
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="block">
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+              Schedule
+            </span>
+            <select
+              value={scheduleConfidence}
+              onChange={(e) => setScheduleConfidence(e.target.value)}
+              className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="">— not set —</option>
+              {SCHEDULE_CONFIDENCE.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.display}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+              Budget
+            </span>
+            <select
+              value={budgetConfidence}
+              onChange={(e) => setBudgetConfidence(e.target.value)}
+              className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="">— not set —</option>
+              {BUDGET_CONFIDENCE.map((b) => (
+                <option key={b.value} value={b.value}>
+                  {b.display}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+              Next milestone
+            </span>
+            <input
+              value={nextMilestone}
+              onChange={(e) => setNextMilestone(e.target.value)}
+              placeholder="Mold ship / First article…"
+              className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+              Milestone date
+            </span>
+            <input
+              type="date"
+              value={nextMilestoneDate}
+              onChange={(e) => setNextMilestoneDate(e.target.value)}
+              className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+            />
+          </label>
+        </div>
+        <label className="mt-3 block">
+          <span className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+            Top focus / blocker
+          </span>
+          <input
+            value={topFocus}
+            onChange={(e) => setTopFocus(e.target.value)}
+            placeholder="One line — the single thing that matters most right now."
             className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
           />
         </label>

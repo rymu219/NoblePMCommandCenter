@@ -69,6 +69,54 @@ export function statusMeta(label: string) {
   );
 }
 
+/*
+ * Skeleton taxonomies — the small fixed structured header captured on
+ * every status update alongside the free narrative. Each field maps to a
+ * chip with a brand tone; all are optional so legacy updates render "—".
+ */
+
+export type ScheduleConfidence = "ahead" | "on_track" | "slipping" | "late";
+
+export const SCHEDULE_CONFIDENCE: Array<{
+  value: ScheduleConfidence;
+  display: string;
+  pill: string;
+}> = [
+  { value: "ahead", display: "Ahead", pill: "bg-[#0F6E56] text-white" },
+  { value: "on_track", display: "On track", pill: "bg-noble-navy text-white" },
+  { value: "slipping", display: "Slipping", pill: "bg-[#BA7517] text-white" },
+  { value: "late", display: "Late", pill: "bg-noble-red text-white" },
+];
+
+export function scheduleMeta(value: string | null | undefined) {
+  return SCHEDULE_CONFIDENCE.find((s) => s.value === value) ?? null;
+}
+
+export type BudgetConfidence = "under" | "on" | "over";
+
+export const BUDGET_CONFIDENCE: Array<{
+  value: BudgetConfidence;
+  display: string;
+  pill: string;
+}> = [
+  { value: "under", display: "Under budget", pill: "bg-[#0F6E56] text-white" },
+  { value: "on", display: "On budget", pill: "bg-noble-navy text-white" },
+  { value: "over", display: "Over budget", pill: "bg-noble-red text-white" },
+];
+
+export function budgetMeta(value: string | null | undefined) {
+  return BUDGET_CONFIDENCE.find((b) => b.value === value) ?? null;
+}
+
+/** The structured header attached to a status update. */
+export interface StatusSkeleton {
+  scheduleConfidence: string | null;
+  budgetConfidence: string | null;
+  nextMilestone: string | null;
+  nextMilestoneDate: Date | null;
+  topFocus: string | null;
+}
+
 /** Common block headings; user can type whatever, but quick-picks help consistency. */
 export const COMMON_BLOCK_HEADINGS = [
   "Update",

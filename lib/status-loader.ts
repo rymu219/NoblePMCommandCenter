@@ -132,3 +132,140 @@ export async function loadPortfolioNotes(reportDate: Date) {
   for (const r of rows) byKind[r.kind] = r.body;
   return byKind;
 }
+
+export interface AttentionItem {
+  label: string;
+  href: string;
+  meta?: string;
+}
+
+export interface AttentionGroups {
+  overdue: AttentionItem[];
+  dueSoon: AttentionItem[];
+  stale: AttentionItem[];
+  milestones: AttentionItem[];
+  periodClose: AttentionItem[];
+  total: number;
+}
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setUTCDate(x.getUTCDate() + n);
+  return x;
+}
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Computes the "what needs attention" buckets for the home strip:
+ * overdue / due-soon action items, stale active projects, upcoming
+ * milestones, and (admins) an open period-close cutoff.
+ */
+export async function loadAttentionItems(opts: {
+  isAdmin: boolean;
+  today: Date;
+}): Promise<AttentionGroups> {
+  const { today, isAdmin } = opts;
+  const soon = addDays(today, 3);
+  const horizon = addDays(today, 14);
+  const staleCutoff = addDays(today, -7);
+
+  const [dueItems, activeProjects, phases] = await Promise.all([
+    prisma.actionItem.findMany({
+      where: { completedAt: null, dueDate: { not: null } },
+      include: { project: { select: { id: true, name: true } } },
+      orderBy: { dueDate: "asc" },
+    }),
+    prisma.projectRow.findMany({
+      where: { status: { in: ["active", "on_hold", "not_started"] } },
+      select: { id: true, name: true, lastUpdatedAt: true, targetEndDate: true },
+      orderBy: { lastUpdatedAt: "asc" },
+    }),
+    prisma.phase.findMany({
+      where: { endDate: { gte: today, lte: horizon } },
+      include: { project: { select: { id: true, name: true } } },
+      orderBy: { endDate: "asc" },
+    }),
+  ]);
+
+  const overdue: AttentionItem[] = [];
+  const dueSoon: AttentionItem[] = [];
+  for (const it of dueItems) {
+    const due = it.dueDate!;
+    const item: AttentionItem = {
+      label: `${it.project.name}: ${it.body}`,
+      href: `/projects/${it.projectId}`,
+      meta: `due ${isoDay(due)}`,
+    };
+    if (due < today) overdue.push(item);
+    else if (due <= soon) dueSoon.push(item);
+  }
+
+  const stale: AttentionItem[] = activeProjects
+    .filter((p) => p.lastUpdatedAt < staleCutoff)
+    .map((p) => {
+      const days = Math.floor(
+        (today.getTime() - p.lastUpdatedAt.getTime()) / 86400000
+      );
+      return {
+        label: p.name,
+        href: `/projects/${p.id}`,
+        meta: `${days}d since update`,
+      };
+    });
+
+  const milestones: AttentionItem[] = [
+    ...phases.map((ph) => ({
+      label: `${ph.project.name}: ${ph.name}`,
+      href: `/projects/${ph.projectId}`,
+      meta: `ends ${isoDay(ph.endDate)}`,
+    })),
+    ...activeProjects
+      .filter(
+        (p) => p.targetEndDate && p.targetEndDate >= today && p.targetEndDate <= horizon
+      )
+      .map((p) => ({
+        label: `${p.name}: target end`,
+        href: `/projects/${p.id}`,
+        meta: `due ${isoDay(p.targetEndDate!)}`,
+      })),
+  ];
+
+  const periodClose: AttentionItem[] = [];
+  if (isAdmin) {
+    const prior = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1)
+    );
+    const closed = await prisma.periodClose.findUnique({
+      where: {
+        year_month: {
+          year: prior.getUTCFullYear(),
+          month: prior.getUTCMonth() + 1,
+        },
+      },
+    });
+    if (!closed) {
+      periodClose.push({
+        label: `${MONTHS[prior.getUTCMonth()]} ${prior.getUTCFullYear()} not closed`,
+        href: "/admin/period-close",
+        meta: "time entries still open",
+      });
+    }
+  }
+
+  const total =
+    overdue.length +
+    dueSoon.length +
+    stale.length +
+    milestones.length +
+    periodClose.length;
+
+  return { overdue, dueSoon, stale, milestones, periodClose, total };
+}

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BackLink } from "@/components/back-link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -36,11 +36,7 @@ export default async function AdminUsersPage({
 
   return (
     <div className="mx-auto w-full max-w-[900px] px-6 py-8">
-      <div className="text-xs text-[var(--muted)]">
-        <Link href="/admin" className="hover:underline">
-          ← Admin
-        </Link>
-      </div>
+      <BackLink href="/admin" label="Admin" />
       <h1 className="mt-2 font-serif text-3xl font-medium text-noble-black">
         Roster
       </h1>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BackLink } from "@/components/back-link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createProjectAction } from "../actions";
@@ -30,11 +31,7 @@ export default async function NewProjectPage({
 
   return (
     <div className="mx-auto w-full max-w-[760px] px-6 py-8">
-      <div className="flex items-baseline gap-3 text-xs text-[var(--muted)]">
-        <Link href="/admin" className="hover:underline">
-          ← Admin
-        </Link>
-      </div>
+      <BackLink href="/admin" label="Admin" />
       <h1 className="mt-2 font-serif text-3xl font-medium text-noble-black">
         New project
       </h1>

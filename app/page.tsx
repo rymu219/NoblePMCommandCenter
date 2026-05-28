@@ -8,6 +8,7 @@ import {
 import { listProjectsForDashboard } from "@/lib/project-loader";
 import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
+import { StatusSkeletonHeader } from "@/components/status-skeleton";
 import { PortfolioDashboard } from "@/components/portfolio-dashboard";
 import { loadPortfolioMetrics } from "@/lib/dashboard-metrics";
 import { deptDisplay, statusMeta } from "@/lib/status";
@@ -153,6 +154,17 @@ export default async function DailyReportDashboard() {
                     qualifier={p.status!.qualifier}
                   />
                 </header>
+                <div className="mt-3">
+                  <StatusSkeletonHeader
+                    skeleton={{
+                      scheduleConfidence: p.status!.scheduleConfidence,
+                      budgetConfidence: p.status!.budgetConfidence,
+                      nextMilestone: p.status!.nextMilestone,
+                      nextMilestoneDate: p.status!.nextMilestoneDate,
+                      topFocus: p.status!.topFocus,
+                    }}
+                  />
+                </div>
                 <div className="mt-3">
                   <StatusBlocks blocks={p.status!.blocks} />
                 </div>

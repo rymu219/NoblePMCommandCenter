@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
+import { StatusSkeletonHeader } from "@/components/status-skeleton";
 import { deptDisplay, parseBlocks } from "@/lib/status";
 
 /*
@@ -24,6 +25,14 @@ interface SnapshotShape {
         qualifier: string | null;
         reportDate: string;
         blocks: unknown; // could be array or string
+        // Skeleton fields — present on snapshots published after the skeleton
+        // shipped; absent (undefined) on older ones. Date is an ISO string
+        // here because JSON.stringify serializes Date that way.
+        scheduleConfidence?: string | null;
+        budgetConfidence?: string | null;
+        nextMilestone?: string | null;
+        nextMilestoneDate?: string | null;
+        topFocus?: string | null;
       } | null;
     }>;
   }>;
@@ -133,6 +142,20 @@ export default async function ReportSnapshotPage({
                         qualifier={p.status!.qualifier}
                       />
                     </header>
+                    <div className="mt-3">
+                      <StatusSkeletonHeader
+                        skeleton={{
+                          scheduleConfidence:
+                            p.status!.scheduleConfidence ?? null,
+                          budgetConfidence: p.status!.budgetConfidence ?? null,
+                          nextMilestone: p.status!.nextMilestone ?? null,
+                          nextMilestoneDate: p.status!.nextMilestoneDate
+                            ? new Date(p.status!.nextMilestoneDate)
+                            : null,
+                          topFocus: p.status!.topFocus ?? null,
+                        }}
+                      />
+                    </div>
                     <div className="mt-3">
                       <StatusBlocks blocks={coerceBlocks(p.status!.blocks)} />
                     </div>

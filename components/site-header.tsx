@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NobleLogo } from "@/components/noble-logo";
+import { MoonPhaseTracker } from "@/components/moon-phase";
 import { getCurrentUser, signOut } from "@/lib/auth";
 
 const NAV: Array<{ href: string; label: string; roles?: string[] }> = [
@@ -47,6 +48,7 @@ export async function SiteHeader() {
         ) : (
           <div className="flex-1" />
         )}
+        <MoonPhaseTracker />
         <div className="hidden items-center gap-3 text-sm md:flex">
           {user ? (
             <>

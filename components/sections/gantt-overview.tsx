@@ -1,5 +1,5 @@
 import type { GanttBar, GanttGate } from "@/lib/types";
-import { ROLE_META } from "@/lib/types";
+import { ganttBarStyle } from "@/lib/types";
 
 interface Props {
   totalWeeks: number;
@@ -64,7 +64,7 @@ export function GanttOverview({ totalWeeks, bars, gates }: Props) {
     y += groupHeaderH;
 
     grouped[g].forEach((b) => {
-      const meta = ROLE_META[b.role];
+      const meta = ganttBarStyle(b);
       const bx = x0 + (b.startWeek - 1) * wkW;
       const bw = b.durationWeeks * wkW;
       renderRows.push(

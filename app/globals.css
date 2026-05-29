@@ -39,7 +39,10 @@
 :root {
   --background: #ffffff;
   --foreground: #111921;
-  --muted: #73726c;
+  /* Darkened from #73726c for a safe WCAG AA margin (~5.3:1 on white). */
+  --muted: #6b6a64;
+  /* For small-but-meaningful labels that must clear AA (~7:1). */
+  --muted-strong: #57564f;
   --surface: #f5f4f0;
   --border: rgba(17, 25, 33, 0.12);
   --border-strong: rgba(17, 25, 33, 0.22);
@@ -52,6 +55,13 @@ html, body {
 
 body {
   font-family: var(--font-sans);
+}
+
+/* Always show a visible keyboard-focus ring (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid var(--color-noble-red, #cf202f);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 /* Print rules — keep the look of the source template */

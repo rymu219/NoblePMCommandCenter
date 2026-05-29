@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { saveSectionAction } from "@/app/projects/[id]/section-actions";
+import { SaveError } from "@/components/save-error";
 import { NotesEditor } from "./notes-editor";
 import { RisksEditor } from "./risks-editor";
 import { DecisionsEditor } from "./decisions-editor";
@@ -168,11 +169,7 @@ export function SectionEdit({
         />
       ) : null}
 
-      {err ? (
-        <p className="mt-3 rounded-md bg-noble-red/10 px-3 py-1.5 text-xs text-noble-red">
-          {err}
-        </p>
-      ) : null}
+      <SaveError message={err} />
     </div>
   );
 }

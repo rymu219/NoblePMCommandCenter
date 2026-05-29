@@ -4,10 +4,13 @@ import {
   loadPortfolio,
   loadOpenFollowups,
   loadPortfolioNotes,
+  loadAttentionItems,
 } from "@/lib/status-loader";
 import { listProjectsForDashboard } from "@/lib/project-loader";
+import { AttentionStrip } from "@/components/attention-strip";
+import { PageContainer } from "@/components/page-container";
 import { StatusPill } from "@/components/status-pill";
-import { StatusBlocks } from "@/components/status-blocks";
+import { StatusSummary } from "@/components/status-summary";
 import { deptDisplay, statusMeta } from "@/lib/status";
 import { PortfolioNote } from "./portfolio-note";
 import { PublishButton } from "./publish-button";
@@ -30,15 +33,16 @@ function prettyDate(d: Date): string {
 export default async function DailyReportDashboard() {
   const user = await getCurrentUser();
   const today = todayUtc();
-  const [portfolio, followups, notes, projectsList] = await Promise.all([
+  const isAdmin = user?.role === "admin";
+  const [portfolio, followups, notes, projectsList, attention] = await Promise.all([
     loadPortfolio(),
     loadOpenFollowups(),
     loadPortfolioNotes(today),
     listProjectsForDashboard(),
+    loadAttentionItems({ isAdmin, today }),
   ]);
 
   const canEdit = user?.role === "admin" || user?.role === "engineer";
-  const isAdmin = user?.role === "admin";
 
   // Group projects with status updates vs not, by program.
   const portfolioWithStatus = portfolio
@@ -72,7 +76,7 @@ export default async function DailyReportDashboard() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-6 py-8">
+    <PageContainer>
       {/* Title strip */}
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
@@ -97,6 +101,9 @@ export default async function DailyReportDashboard() {
           {isAdmin ? <PublishButton snapshot={snapshot} /> : null}
         </div>
       </div>
+
+      {/* WHAT NEEDS ATTENTION */}
+      <AttentionStrip groups={attention} />
 
       {/* PRIORITY CALLOUT */}
       <ReportSection title="Priority Callout">
@@ -148,7 +155,7 @@ export default async function DailyReportDashboard() {
                   />
                 </header>
                 <div className="mt-3">
-                  <StatusBlocks blocks={p.status!.blocks} />
+                  <StatusSummary blocks={p.status!.blocks} />
                 </div>
                 <div className="mt-3 text-[10px] text-[var(--muted)]">
                   Reported {p.status!.reportDate.toISOString().slice(0, 10)}
@@ -274,7 +281,7 @@ export default async function DailyReportDashboard() {
         Showing {projectsList.length} active projects across{" "}
         {portfolio.length} programs.
       </p>
-    </div>
+    </PageContainer>
   );
 }
 

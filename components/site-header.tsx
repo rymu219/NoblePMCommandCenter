@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NobleLogo } from "@/components/noble-logo";
+import { MainNav } from "@/components/main-nav";
 import { MoonPhaseTracker } from "@/components/moon-phase";
 import { getCurrentUser, signOut } from "@/lib/auth";
 
@@ -32,19 +33,11 @@ export async function SiteHeader() {
           </span>
         </Link>
         {user ? (
-          <nav className="flex flex-1 items-center gap-1 text-sm">
-            {NAV.filter((n) => !n.roles || n.roles.includes(user.role)).map(
-              (item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="rounded-md px-3 py-1.5 text-noble-black/80 transition-colors hover:bg-noble-stone/40 hover:text-noble-black"
-                >
-                  {item.label}
-                </Link>
-              )
-            )}
-          </nav>
+          <MainNav
+            items={NAV.filter(
+              (n) => !n.roles || n.roles.includes(user.role)
+            ).map(({ href, label }) => ({ href, label }))}
+          />
         ) : (
           <div className="flex-1" />
         )}
@@ -52,9 +45,9 @@ export async function SiteHeader() {
         <div className="hidden items-center gap-3 text-sm md:flex">
           {user ? (
             <>
-              <span className="text-noble-black/60">
+              <span className="text-noble-black/70">
                 {user.name}{" "}
-                <span className="text-noble-black/40 uppercase">
+                <span className="uppercase text-[var(--muted)]">
                   ({user.role})
                 </span>
               </span>

@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { GanttBar, GanttGate, Role } from "@/lib/types";
-import { ROLE_META } from "@/lib/types";
+import type { GanttBar, GanttGate } from "@/lib/types";
+import { ROLE_META, buildGanttLegend } from "@/lib/types";
 import { AddRowButton, RemoveRowButton, SectionButtons } from "./section-buttons";
+import { Legend } from "./legend";
 
 interface BarRow extends GanttBar {
   id: number;
+  color: string;
+  category: string;
 }
 interface GateRow extends GanttGate {
   id: number;
@@ -15,7 +18,13 @@ interface GateRow extends GanttGate {
 let _id = 1;
 const nextId = () => _id++;
 
-const ROLES: Role[] = ["engineering", "process", "automation", "quality"];
+// Default color + category from the legacy role, so existing bars edit cleanly.
+function barColor(b: GanttBar): string {
+  return b.color ?? ROLE_META[b.role ?? "engineering"].stroke;
+}
+function barCategory(b: GanttBar): string {
+  return b.category ?? ROLE_META[b.role ?? "engineering"].label;
+}
 
 interface Props {
   initial: { totalWeeks: number; bars: GanttBar[]; gates: GanttGate[] };
@@ -28,7 +37,12 @@ export function GanttOverviewEditor({ initial, submit, busy, cancel }: Props) {
   const [totalWeeks, setTotalWeeks] = useState(initial.totalWeeks || 12);
   const [bars, setBars] = useState<BarRow[]>(
     initial.bars.length
-      ? initial.bars.map((b) => ({ ...b, id: nextId() }))
+      ? initial.bars.map((b) => ({
+          ...b,
+          id: nextId(),
+          color: barColor(b),
+          category: barCategory(b),
+        }))
       : [
           {
             id: nextId(),
@@ -36,7 +50,8 @@ export function GanttOverviewEditor({ initial, submit, busy, cancel }: Props) {
             group: "Engineering",
             startWeek: 1,
             durationWeeks: 1,
-            role: "engineering",
+            color: "#534AB7",
+            category: "Engineering",
           },
         ]
   );
@@ -51,17 +66,21 @@ export function GanttOverviewEditor({ initial, submit, busy, cancel }: Props) {
     setBars((rs) => rs.filter((r) => r.id !== id));
   }
   function addBar() {
-    setBars((rs) => [
-      ...rs,
-      {
-        id: nextId(),
-        label: "",
-        group: rs[rs.length - 1]?.group ?? "Engineering",
-        startWeek: 1,
-        durationWeeks: 1,
-        role: "engineering",
-      },
-    ]);
+    setBars((rs) => {
+      const last = rs[rs.length - 1];
+      return [
+        ...rs,
+        {
+          id: nextId(),
+          label: "",
+          group: last?.group ?? "Engineering",
+          startWeek: 1,
+          durationWeeks: 1,
+          color: last?.color ?? "#534AB7",
+          category: last?.category ?? "Engineering",
+        },
+      ];
+    });
   }
 
   function updateGate(id: number, patch: Partial<GateRow>) {
@@ -100,7 +119,7 @@ export function GanttOverviewEditor({ initial, submit, busy, cancel }: Props) {
         {bars.map((b) => (
           <div
             key={b.id}
-            className="grid grid-cols-[1fr_180px_140px_80px_80px_auto] items-center gap-2"
+            className="grid grid-cols-[1fr_130px_130px_44px_70px_70px_auto] items-center gap-2"
           >
             <input
               value={b.label}
@@ -112,23 +131,24 @@ export function GanttOverviewEditor({ initial, submit, busy, cancel }: Props) {
               value={b.group}
               onChange={(e) => updateBar(b.id, { group: e.target.value })}
               placeholder="Group heading"
+              title="Left-side group band heading"
               className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs"
             />
-            <select
-              value={b.role}
-              onChange={(e) => updateBar(b.id, { role: e.target.value as Role })}
+            <input
+              value={b.category}
+              onChange={(e) => updateBar(b.id, { category: e.target.value })}
+              placeholder="Category / dept"
+              title="Legend label for this color"
               className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs"
-              style={{
-                borderLeftColor: ROLE_META[b.role].stroke,
-                borderLeftWidth: 4,
-              }}
-            >
-              {ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {ROLE_META[role].label}
-                </option>
-              ))}
-            </select>
+              style={{ borderLeftColor: b.color, borderLeftWidth: 4 }}
+            />
+            <input
+              type="color"
+              value={b.color}
+              onChange={(e) => updateBar(b.id, { color: e.target.value })}
+              title="Bar color"
+              className="h-7 w-full cursor-pointer rounded-md border border-[var(--border)] bg-white p-0.5"
+            />
             <input
               type="number"
               min={1}
@@ -184,6 +204,15 @@ export function GanttOverviewEditor({ initial, submit, busy, cancel }: Props) {
         ))}
       </div>
       <AddRowButton onClick={addGate} label="Add gate" />
+
+      <div className="mt-5 rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/40 p-3">
+        <div className="text-[10px] font-semibold tracking-wider uppercase text-noble-black/60">
+          Legend preview — builds from the bars above
+        </div>
+        <div className="mt-2">
+          <Legend items={buildGanttLegend(bars, [])} />
+        </div>
+      </div>
 
       <SectionButtons
         busy={busy}

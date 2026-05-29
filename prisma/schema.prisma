@@ -26,6 +26,8 @@ model User {
   role         String   @default("viewer")
   /// engineering | process | automation | quality | scheduling | purchasing | sales | management | admin
   department   String   @default("engineering")
+  /// Free-text job title, e.g. "Senior Process Engineer". Optional.
+  title        String?
   /// Hourly rate in USD; null until set. Stored as float for SQLite dev.
   hourlyRate   Float?
   active       Boolean  @default(true)

@@ -1,5 +1,5 @@
 import type { SequentialStep } from "@/lib/types";
-import { ROLE_META } from "@/lib/types";
+import { ganttStepStyle } from "@/lib/types";
 
 interface Props {
   totalDays: number;
@@ -27,13 +27,6 @@ export function GanttDetail({
 
   const rowH = 28;
   const svgH = 24 + steps.length * rowH + 8;
-
-  const stepColor = (kind: SequentialStep["kind"]) => {
-    if (kind === "process") return ROLE_META.automation; // matches template orange
-    if (kind === "quality") return ROLE_META.quality;
-    // cure → hatch pattern handled separately
-    return ROLE_META.process;
-  };
 
   return (
     <div className="gantt-wrap overflow-x-auto">
@@ -97,8 +90,7 @@ export function GanttDetail({
           const bx = x0 + s.startHour * hourW;
           const bw = s.durationHours * hourW;
           const y = 28 + i * rowH;
-          const cure = s.kind === "cure";
-          const meta = cure ? null : stepColor(s.kind);
+          const meta = ganttStepStyle(s);
           return (
             <g key={i}>
               <text
@@ -116,8 +108,8 @@ export function GanttDetail({
                 width={bw}
                 height={20}
                 rx={3}
-                fill={cure ? "url(#hatch)" : meta!.fill}
-                stroke={cure ? "#888780" : meta!.stroke}
+                fill={meta.fill}
+                stroke={meta.stroke}
                 strokeWidth={0.5}
               />
               {s.note ? (
@@ -126,7 +118,7 @@ export function GanttDetail({
                   y={y + 15}
                   textAnchor="middle"
                   fontSize={10}
-                  fill={cure ? "#73726c" : meta!.textOnFill}
+                  fill={meta.textOnFill}
                 >
                   {s.note}
                 </text>

@@ -71,7 +71,117 @@ async function main() {
   });
   console.log("✓ 999-999 Miscellaneous bucket ready");
 
+  // 3. Optional Command Center demo data (only when SEED_DEMO=1). Uses
+  //    deterministic ids so it's idempotent and never touches production
+  //    unless explicitly requested. Exercises every board/report cue.
+  if (process.env.SEED_DEMO === "1") {
+    await seedBoardDemo(passwordHash);
+    console.log("✓ Command Center demo data seeded");
+  }
+
   console.log("Seed complete.");
+}
+
+/** Demo milestones/subtasks for verifying the Command Center board + report. */
+async function seedBoardDemo(passwordHash: string) {
+  const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
+
+  // Two demo engineers.
+  const alice = await prisma.user.upsert({
+    where: { email: "alice@nobleplastics.local" },
+    update: { name: "Alice Ng", role: "engineer", active: true },
+    create: {
+      email: "alice@nobleplastics.local",
+      name: "Alice Ng",
+      passwordHash,
+      role: "engineer",
+      department: "engineering",
+      active: true,
+    },
+  });
+  const bob = await prisma.user.upsert({
+    where: { email: "bob@nobleplastics.local" },
+    update: { name: "Bob Reyes", role: "engineer", active: true },
+    create: {
+      email: "bob@nobleplastics.local",
+      name: "Bob Reyes",
+      passwordHash,
+      role: "engineer",
+      department: "process",
+      active: true,
+    },
+  });
+
+  // A program + project assigned to both engineers.
+  await prisma.program.upsert({
+    where: { prefix: "640" },
+    update: {},
+    create: { prefix: "640", name: "Demo Program" },
+  });
+  await prisma.projectRow.upsert({
+    where: { id: "640-001" },
+    update: { name: "Widget Mold (demo)" },
+    create: {
+      id: "640-001",
+      programPrefix: "640",
+      name: "Widget Mold (demo)",
+      status: "active",
+    },
+  });
+  for (const uid of [alice.id, bob.id]) {
+    await prisma.projectAssignment.upsert({
+      where: { projectId_userId: { projectId: "640-001", userId: uid } },
+      update: {},
+      create: { projectId: "640-001", userId: uid },
+    });
+  }
+
+  // Milestones: one completed-late-with-drift, one overdue-open, one due-soon.
+  const milestones = [
+    {
+      id: "demo-m1",
+      title: "Design freeze",
+      baselineDate: d("2026-04-01"),
+      targetDate: d("2026-04-15"), // drifted +14d
+      actualDate: d("2026-04-20"), // late vs both
+      position: 0,
+    },
+    {
+      id: "demo-m2",
+      title: "First article",
+      baselineDate: d("2026-05-20"),
+      targetDate: d("2026-05-20"),
+      actualDate: null, // overdue (today is 2026-06-01)
+      position: 1,
+    },
+    {
+      id: "demo-m3",
+      title: "Customer signoff",
+      baselineDate: d("2026-06-03"),
+      targetDate: d("2026-06-03"),
+      actualDate: null, // due soon
+      position: 2,
+    },
+  ];
+  for (const m of milestones) {
+    await prisma.milestone.upsert({
+      where: { id: m.id },
+      update: { ...m, projectId: "640-001" },
+      create: { ...m, projectId: "640-001" },
+    });
+  }
+
+  // Subtasks exercising done-late, overdue, due-soon, done-on-time.
+  const subtasks = [
+    { id: "demo-s1", milestoneId: "demo-m1", ownerId: alice.id, title: "CAD review", dueDate: d("2026-05-01"), completedAt: d("2026-05-05"), position: 0 }, // done late
+    { id: "demo-s2", milestoneId: "demo-m1", ownerId: alice.id, title: "DFM checklist", dueDate: d("2026-05-10"), completedAt: d("2026-05-09"), position: 1 }, // done on time
+    { id: "demo-s3", milestoneId: "demo-m2", ownerId: alice.id, title: "Cut steel", dueDate: d("2026-05-25"), completedAt: null, position: 0 }, // overdue
+    { id: "demo-s4", milestoneId: "demo-m3", ownerId: bob.id, title: "Process sheet", dueDate: d("2026-06-02"), completedAt: null, position: 0 }, // due soon
+    { id: "demo-s5", milestoneId: "demo-m1", ownerId: bob.id, title: "Material spec", dueDate: d("2026-04-10"), completedAt: d("2026-04-18"), position: 0 }, // done late
+  ];
+  for (const s of subtasks) {
+    await prisma.subtask.upsert({ where: { id: s.id }, update: s, create: s });
+  }
 }
 
 main()

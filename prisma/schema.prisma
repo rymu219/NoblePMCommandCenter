@@ -40,6 +40,7 @@ model User {
   auditLog      AuditLog[]
   sessions      Session[]
   closesPerformed PeriodClose[] @relation("ClosedBy")
+  ownedSubtasks Subtask[]     @relation("OwnedSubtasks")
 }
 
 /// NextAuth-style sessions stored in DB for credentials provider.
@@ -109,6 +110,7 @@ model ProjectRow {
   actionItems   ActionItem[]
   phases        Phase[]
   budgetTracks  BudgetTrack[]
+  milestones    Milestone[]
 }
 
 /// Multi-month phase row that drives the Program Dashboard mini-Gantt.
@@ -339,6 +341,60 @@ model PortfolioNote {
   createdAt   DateTime @default(now())
 
   @@unique([reportDate, kind])
+}
+
+/// Command Center milestone — project-scoped, admin-owned, shared across all
+/// engineers on the project. baselineDate freezes the ORIGINAL commitment so
+/// we can measure how far the target later slipped (drift), and actualDate vs
+/// baseline/target gives the "how late" evidence on the slippage report.
+/// Distinct from Phase (which drives the program mini-Gantt).
+model Milestone {
+  id           String     @id @default(cuid())
+  projectId    String
+  project      ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  /// Original committed target (UTC midnight). Set once at create; only an
+  /// explicit admin "re-baseline" changes it.
+  baselineDate DateTime
+  /// Current target (UTC midnight). Starts == baselineDate; only admin moves it.
+  /// Drift = targetDate - baselineDate.
+  targetDate   DateTime
+  /// Actual completion (UTC midnight), admin-entered from what the engineer
+  /// reports. null = not yet complete. Lateness = actualDate - targetDate.
+  actualDate   DateTime?
+  /// Display order within the project (admin-controlled).
+  position     Int        @default(0)
+  createdById  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  subtasks     Subtask[]
+
+  @@index([projectId, position])
+}
+
+/// Engineer-owned checklist item nested under a milestone. Created/edited/
+/// reordered freely by the owning engineer. Lives in exactly one engineer's
+/// swimlane via ownerId.
+model Subtask {
+  id          String    @id @default(cuid())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  /// The engineer who owns this subtask = the swimlane it appears in.
+  ownerId     String
+  owner       User      @relation("OwnedSubtasks", fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  /// Optional own due date (UTC midnight). null = no deadline.
+  dueDate     DateTime?
+  /// Completion timestamp; null = open. Non-null powers the DONE checkbox and
+  /// the "+N days late" cue (completedAt - dueDate).
+  completedAt DateTime?
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([milestoneId, ownerId, position])
+  @@index([ownerId, completedAt])
 }
 
 /// Frozen, timestamped snapshot of a published report.

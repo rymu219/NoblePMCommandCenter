@@ -159,8 +159,25 @@ async function seedBoardDemo(passwordHash: string) {
       title: "Customer signoff",
       baselineDate: d("2026-06-03"),
       targetDate: d("2026-06-03"),
-      actualDate: null, // due soon
+      actualDate: null, // due soon (Upcoming); Bob demoted to Supporting below
       position: 2,
+    },
+    {
+      id: "demo-m4",
+      title: "Production launch",
+      baselineDate: d("2026-08-15"),
+      targetDate: d("2026-08-15"),
+      actualDate: null, // far out → On the horizon
+      position: 3,
+    },
+    {
+      id: "demo-m5",
+      title: "Spare-tooling plan",
+      notes: "Scope TBD — set a date once the customer confirms volumes.",
+      baselineDate: null,
+      targetDate: null,
+      actualDate: null, // undated → Needs a date
+      position: 4,
     },
   ];
   for (const m of milestones) {
@@ -170,6 +187,13 @@ async function seedBoardDemo(passwordHash: string) {
       create: { ...m, projectId: "640-001" },
     });
   }
+
+  // Bob is only supporting the customer signoff milestone.
+  await prisma.milestoneEngagement.upsert({
+    where: { milestoneId_userId: { milestoneId: "demo-m3", userId: bob.id } },
+    update: { role: "support" },
+    create: { milestoneId: "demo-m3", userId: bob.id, role: "support" },
+  });
 
   // Subtasks exercising done-late, overdue, due-soon, done-on-time.
   const subtasks = [

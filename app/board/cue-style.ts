@@ -45,3 +45,12 @@ export function driftBadge(driftDays: number): CueBadge | null {
     className: "bg-noble-gold/25 text-noble-black",
   };
 }
+
+/** Flag for an open milestone with no target date set. */
+export function needsDateBadge(
+  targetIso: string | null,
+  actualIso: string | null
+): CueBadge | null {
+  if (actualIso || targetIso) return null;
+  return { label: "⚠ Needs a date", className: "bg-noble-red/10 text-noble-red" };
+}

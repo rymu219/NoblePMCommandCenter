@@ -41,6 +41,7 @@ model User {
   sessions      Session[]
   closesPerformed PeriodClose[] @relation("ClosedBy")
   ownedSubtasks Subtask[]     @relation("OwnedSubtasks")
+  milestoneEngagements MilestoneEngagement[] @relation("MilestoneEngagements")
 }
 
 /// NextAuth-style sessions stored in DB for credentials provider.
@@ -353,12 +354,14 @@ model Milestone {
   projectId    String
   project      ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title        String
-  /// Original committed target (UTC midnight). Set once at create; only an
-  /// explicit admin "re-baseline" changes it.
-  baselineDate DateTime
-  /// Current target (UTC midnight). Starts == baselineDate; only admin moves it.
-  /// Drift = targetDate - baselineDate.
-  targetDate   DateTime
+  /// Free-text notes / context for the milestone. Optional.
+  notes        String?
+  /// Original committed target (UTC midnight). Frozen when the target is first
+  /// set; only an explicit admin "re-baseline" changes it. null until dated.
+  baselineDate DateTime?
+  /// Current target (UTC midnight). Optional — a milestone can be jotted down
+  /// before its date is known (flagged "needs a date"). Drift = target - baseline.
+  targetDate   DateTime?
   /// Actual completion (UTC midnight), admin-entered from what the engineer
   /// reports. null = not yet complete. Lateness = actualDate - targetDate.
   actualDate   DateTime?
@@ -369,6 +372,7 @@ model Milestone {
   updatedAt    DateTime   @updatedAt
 
   subtasks     Subtask[]
+  engagements  MilestoneEngagement[]
 
   @@index([projectId, position])
 }
@@ -395,6 +399,23 @@ model Subtask {
 
   @@index([milestoneId, ownerId, position])
   @@index([ownerId, completedAt])
+}
+
+/// Per-engineer override of their engagement with a milestone. ABSENCE means
+/// the engineer is "direct" (the default for everyone assigned to the project);
+/// a row demotes them to "supporting" — the milestone shows in their Supporting
+/// section on the board rather than a date bucket.
+model MilestoneEngagement {
+  id          String    @id @default(cuid())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation("MilestoneEngagements", fields: [userId], references: [id], onDelete: Cascade)
+  /// "support" — reserved for future tiers; a row's existence == demoted.
+  role        String    @default("support")
+
+  @@unique([milestoneId, userId])
+  @@index([userId])
 }
 
 /// Frozen, timestamped snapshot of a published report.

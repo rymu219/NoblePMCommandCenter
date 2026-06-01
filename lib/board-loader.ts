@@ -3,8 +3,10 @@ import { ymd } from "./time-tracking";
 import type { AuthUser } from "./auth";
 import {
   type Cue,
+  type MilestoneBucket,
   type SlippageRow,
   aggregate,
+  milestoneBucket,
   milestoneCue,
   milestoneVsBaseline,
   monthKey,
@@ -41,8 +43,9 @@ export interface BoardMilestone {
   id: string;
   projectId: string;
   title: string;
-  baselineIso: string;
-  targetIso: string;
+  notes: string | null;
+  baselineIso: string | null;
+  targetIso: string | null;
   actualIso: string | null;
   driftDays: number;
   cue: Cue;
@@ -54,10 +57,26 @@ export interface BoardMilestone {
   totalCount: number;
 }
 
-export interface BoardProject {
-  id: string;
-  name: string;
-  milestones: BoardMilestone[];
+/** A milestone as it appears in an engineer's lane, with its project label and
+ *  this engineer's engagement (direct vs supporting). */
+export interface BoardMilestoneCard extends BoardMilestone {
+  projectName: string;
+  /** True when the lane's engineer is demoted to supporting on this milestone. */
+  isSupport: boolean;
+}
+
+export type BoardSectionKey =
+  | "undated"
+  | "overdue"
+  | "upcoming"
+  | "horizon"
+  | "supporting"
+  | "completed";
+
+export interface BoardSection {
+  key: BoardSectionKey;
+  label: string;
+  milestones: BoardMilestoneCard[];
 }
 
 export interface BoardSwimlane {
@@ -65,7 +84,7 @@ export interface BoardSwimlane {
   ownerId: string;
   ownerName: string;
   isUnassigned: boolean;
-  projects: BoardProject[];
+  sections: BoardSection[];
   /** Projects this engineer is assigned to — the add-milestone picker list. */
   assignableProjects: Array<{ id: string; name: string }>;
 }
@@ -81,6 +100,16 @@ export interface BoardData {
 }
 
 const UNASSIGNED = "__unassigned__";
+
+/** Lane section render order + labels. Empty sections are omitted. */
+const SECTION_ORDER: Array<{ key: BoardSectionKey; label: string }> = [
+  { key: "undated", label: "Needs a date" },
+  { key: "overdue", label: "Overdue" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "horizon", label: "On the horizon" },
+  { key: "supporting", label: "Supporting" },
+  { key: "completed", label: "Completed — with thanks" },
+];
 
 function toSubtask(s: {
   id: string;
@@ -159,18 +188,30 @@ export async function loadBoard(viewer: AuthUser): Promise<BoardData> {
     subtasksByOwnerMs.set(key, list);
   }
 
+  // 5. Engagement overrides — a row means that engineer is "supporting".
+  const engagements = await prisma.milestoneEngagement.findMany({
+    where: { userId: { in: engineerIds }, milestoneId: { in: milestoneIds } },
+    select: { userId: true, milestoneId: true },
+  });
+  const supportSet = new Set(
+    engagements.map((e) => `${e.userId}|${e.milestoneId}`)
+  );
+
   const today = todayUTC();
-  function buildMilestone(
+  function buildCard(
     m: (typeof milestones)[number],
-    ownerId: string
-  ): BoardMilestone {
+    ownerId: string,
+    isSupport: boolean
+  ): BoardMilestoneCard {
     const subs = subtasksByOwnerMs.get(`${ownerId}|${m.id}`) ?? [];
     return {
       id: m.id,
       projectId: m.projectId,
+      projectName: projectName.get(m.projectId) ?? m.projectId,
       title: m.title,
-      baselineIso: ymd(m.baselineDate),
-      targetIso: ymd(m.targetDate),
+      notes: m.notes,
+      baselineIso: m.baselineDate ? ymd(m.baselineDate) : null,
+      targetIso: m.targetDate ? ymd(m.targetDate) : null,
       actualIso: m.actualDate ? ymd(m.actualDate) : null,
       driftDays: targetDriftDays(m),
       cue: milestoneCue(m, today),
@@ -178,28 +219,57 @@ export async function loadBoard(viewer: AuthUser): Promise<BoardData> {
       subtasks: subs,
       doneCount: subs.filter((s) => s.completedAtIso !== null).length,
       totalCount: subs.length,
+      isSupport,
     };
   }
 
-  // Build one swimlane per engineer from their assigned, milestone-bearing
-  // projects.
+  // Assemble an engineer's lane: classify each of their projects' milestones
+  // into a section, then order/sort the sections.
+  function buildLane(
+    ownerId: string,
+    ownerName: string,
+    isUnassigned: boolean,
+    projectIds: string[],
+    assignableProjects: Array<{ id: string; name: string }>
+  ): BoardSwimlane {
+    const byKey = new Map<BoardSectionKey, BoardMilestoneCard[]>();
+    for (const pid of projectIds) {
+      for (const m of milestonesByProject.get(pid) ?? []) {
+        const isSupport =
+          !isUnassigned && supportSet.has(`${ownerId}|${m.id}`);
+        const bucket: MilestoneBucket = milestoneBucket(m, today);
+        const key: BoardSectionKey =
+          isSupport && bucket !== "completed" ? "supporting" : bucket;
+        const list = byKey.get(key) ?? [];
+        list.push(buildCard(m, ownerId, isSupport));
+        byKey.set(key, list);
+      }
+    }
+
+    const sections: BoardSection[] = [];
+    for (const { key, label } of SECTION_ORDER) {
+      const cards = byKey.get(key);
+      if (!cards || cards.length === 0) continue;
+      // Completed: most-recently-done first; everything else: soonest target.
+      cards.sort((a, b) =>
+        key === "completed"
+          ? (b.actualIso ?? "").localeCompare(a.actualIso ?? "")
+          : (a.targetIso ?? "").localeCompare(b.targetIso ?? "")
+      );
+      sections.push({ key, label, milestones: cards });
+    }
+    return { ownerId, ownerName, isUnassigned, sections, assignableProjects };
+  }
+
   const swimlanes: BoardSwimlane[] = engineerUsers.map((eng) => {
-    const projs = (projectsByEngineer.get(eng.id) ?? [])
-      .filter((p) => (milestonesByProject.get(p.id)?.length ?? 0) > 0)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        milestones: (milestonesByProject.get(p.id) ?? []).map((m) =>
-          buildMilestone(m, eng.id)
-        ),
-      }));
-    return {
-      ownerId: eng.id,
-      ownerName: eng.name,
-      isUnassigned: false,
-      projects: projs,
-      assignableProjects: projectsByEngineer.get(eng.id) ?? [],
-    };
+    const projectIds = (projectsByEngineer.get(eng.id) ?? []).map((p) => p.id);
+    return buildLane(
+      eng.id,
+      eng.name,
+      false,
+      projectIds,
+      projectsByEngineer.get(eng.id) ?? []
+    );
   });
 
   // Admin/viewer: an Unassigned lane for milestones on projects with no
@@ -210,20 +280,9 @@ export async function loadBoard(viewer: AuthUser): Promise<BoardData> {
       (pid) => !assignedSet.has(pid)
     );
     if (orphanProjects.length) {
-      swimlanes.push({
-        ownerId: UNASSIGNED,
-        ownerName: "Unassigned",
-        isUnassigned: true,
-        projects: orphanProjects.map((pid) => ({
-          id: pid,
-          name: projectName.get(pid) ?? pid,
-          // No engineer owner → no per-owner subtasks; show milestones bare.
-          milestones: (milestonesByProject.get(pid) ?? []).map((m) =>
-            buildMilestone(m, UNASSIGNED)
-          ),
-        })),
-        assignableProjects: [],
-      });
+      swimlanes.push(
+        buildLane(UNASSIGNED, "Unassigned", true, orphanProjects, [])
+      );
     }
   }
 
@@ -375,12 +434,13 @@ export async function loadProjectMilestones(
     include: { subtasks: { select: { completedAt: true } } },
   });
 
-  return milestones.map((m) => ({
+  const views: ProjectMilestoneView[] = milestones.map((m) => ({
     id: m.id,
     projectId: m.projectId,
     title: m.title,
-    baselineIso: ymd(m.baselineDate),
-    targetIso: ymd(m.targetDate),
+    notes: m.notes,
+    baselineIso: m.baselineDate ? ymd(m.baselineDate) : null,
+    targetIso: m.targetDate ? ymd(m.targetDate) : null,
     actualIso: m.actualDate ? ymd(m.actualDate) : null,
     driftDays: targetDriftDays(m),
     cue: milestoneCue(m, today),
@@ -388,4 +448,13 @@ export async function loadProjectMilestones(
     doneCount: m.subtasks.filter((s) => s.completedAt !== null).length,
     totalCount: m.subtasks.length,
   }));
+
+  // Logical order for the record: open milestones by soonest target (undated
+  // first so they get a date), then completed ones, most-recently-done last.
+  const rank = (v: ProjectMilestoneView) => (v.actualIso ? 1 : 0);
+  return views.sort((a, b) => {
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    if (a.actualIso && b.actualIso) return b.actualIso.localeCompare(a.actualIso);
+    return (a.targetIso ?? "").localeCompare(b.targetIso ?? "");
+  });
 }

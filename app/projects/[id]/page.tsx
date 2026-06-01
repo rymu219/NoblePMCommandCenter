@@ -16,11 +16,13 @@ import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
 import { buildGanttLegend } from "@/lib/types";
 import { loadProject } from "@/lib/project-loader";
+import { loadProjectMilestones } from "@/lib/board-loader";
 import { loadLatestStatus } from "@/lib/status-loader";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusEditor } from "./status-editor";
 import { OpenActionItems } from "./open-action-items";
+import { ProjectMilestones } from "./project-milestones";
 
 interface Toggles {
   summary_cards: boolean;
@@ -67,7 +69,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, latest, user, openItems, rowMeta] = await Promise.all([
+  const [project, latest, user, openItems, rowMeta, milestones] = await Promise.all([
     loadProject(id),
     loadLatestStatus(id),
     getCurrentUser(),
@@ -79,6 +81,7 @@ export default async function ProjectPage({
       where: { id },
       select: { templateToggles: true, ownerId: true },
     }),
+    loadProjectMilestones(id),
   ]);
   if (!project) notFound();
 
@@ -151,6 +154,16 @@ export default async function ProjectPage({
           </div>
         ) : null}
       </SectionShell>
+
+      {milestones.length > 0 || canEdit ? (
+        <SectionShell title="Milestones">
+          <ProjectMilestones
+            projectId={project.projectNumber}
+            milestones={milestones}
+            canEdit={canEdit}
+          />
+        </SectionShell>
+      ) : null}
 
       {toggles.summary_cards ? (
         <SectionShell title="Summary">

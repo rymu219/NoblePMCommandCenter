@@ -2,7 +2,7 @@ import type { BoardMilestone, BoardSwimlane } from "@/lib/board-loader";
 import { cueBadge, driftBadge } from "./cue-style";
 import { SubtaskRow } from "./subtask-row";
 import { AddSubtask } from "./add-subtask";
-import { AddMilestone, EditMilestone } from "./milestone-editor";
+import { AddMilestone, AddMilestoneToLane, EditMilestone } from "./milestone-editor";
 
 /*
  * One engineer's lane: their assigned, milestone-bearing projects → milestone
@@ -19,7 +19,7 @@ export function Swimlane({
   canEditSubtasks: boolean;
 }) {
   return (
-    <section className="flex w-[340px] shrink-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <section className="flex w-full flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)]">
       <header className="rounded-t-lg border-b border-[var(--border)] bg-noble-black px-3 py-2">
         <h2 className="text-sm font-semibold text-white">{lane.ownerName}</h2>
       </header>
@@ -52,6 +52,9 @@ export function Swimlane({
             </div>
           ))
         )}
+        {canEditMilestones && !lane.isUnassigned ? (
+          <AddMilestoneToLane projects={lane.assignableProjects} />
+        ) : null}
       </div>
     </section>
   );
@@ -90,6 +93,11 @@ function MilestoneCard({
                 className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${drift.className}`}
               >
                 {drift.label}
+              </span>
+            ) : null}
+            {milestone.totalCount > 0 ? (
+              <span className="rounded bg-noble-stone/50 px-1.5 py-0.5 text-[10px] font-medium text-noble-black/70">
+                {milestone.doneCount}/{milestone.totalCount} done
               </span>
             ) : null}
           </div>

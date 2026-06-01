@@ -1,0 +1,274 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { requireUser, requireRole, type AuthUser } from "@/lib/auth";
+import { parseYmd } from "@/lib/time-tracking";
+
+/*
+ * Command Center mutations. Mirrors app/projects/[id]/section-actions.ts:
+ * every write runs in a $transaction that also appends an AuditLog row, then
+ * revalidates the board + report. Permissions are re-checked here on the
+ * server — never trust the client.
+ *
+ *   - Milestones: admin only (create, move target, record actual, re-baseline,
+ *     delete). baselineDate is frozen at create; only the explicit re-baseline
+ *     action changes it.
+ *   - Subtasks: the owning engineer OR admin (create, edit, toggle done,
+ *     reorder, delete).
+ */
+
+function ymdOrNull(formData: FormData, field: string): Date | null {
+  const v = String(formData.get(field) ?? "").trim();
+  return v ? parseYmd(v) : null;
+}
+
+function reqStr(formData: FormData, field: string): string {
+  const v = String(formData.get(field) ?? "").trim();
+  if (!v) throw new Error(`Missing ${field}.`);
+  return v;
+}
+
+function revalidate() {
+  revalidatePath("/board");
+  revalidatePath("/board/report");
+}
+
+// --- Milestones (admin only) ------------------------------------------------
+
+export async function createMilestoneAction(formData: FormData) {
+  const user = await requireRole(["admin"]);
+  const projectId = reqStr(formData, "projectId");
+  const title = reqStr(formData, "title");
+  const target = ymdOrNull(formData, "targetDate");
+  if (!target) throw new Error("A target date is required.");
+
+  await prisma.$transaction(async (tx) => {
+    const last = await tx.milestone.findFirst({
+      where: { projectId },
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
+    const created = await tx.milestone.create({
+      data: {
+        projectId,
+        title,
+        baselineDate: target, // baseline frozen to the original commitment
+        targetDate: target,
+        position: (last?.position ?? -1) + 1,
+        createdById: user.id,
+      },
+    });
+    await audit(tx, user, "Milestone", created.id, "create", null, {
+      projectId,
+      title,
+      targetDate: target,
+    });
+  });
+  revalidate();
+}
+
+export async function updateMilestoneAction(formData: FormData) {
+  const user = await requireRole(["admin"]);
+  const id = reqStr(formData, "id");
+  const title = reqStr(formData, "title");
+  const target = ymdOrNull(formData, "targetDate");
+  const actual = ymdOrNull(formData, "actualDate"); // empty = not complete
+  if (!target) throw new Error("A target date is required.");
+
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.milestone.findUnique({ where: { id } });
+    if (!before) throw new Error("Milestone not found.");
+    await tx.milestone.update({
+      where: { id },
+      data: { title, targetDate: target, actualDate: actual },
+    });
+    await audit(tx, user, "Milestone", id, "update", before, {
+      title,
+      targetDate: target,
+      actualDate: actual,
+    });
+  });
+  revalidate();
+}
+
+export async function rebaselineMilestoneAction(formData: FormData) {
+  const user = await requireRole(["admin"]);
+  const id = reqStr(formData, "id");
+  const baseline = ymdOrNull(formData, "baselineDate");
+  if (!baseline) throw new Error("A baseline date is required.");
+
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.milestone.findUnique({ where: { id } });
+    if (!before) throw new Error("Milestone not found.");
+    await tx.milestone.update({ where: { id }, data: { baselineDate: baseline } });
+    await audit(tx, user, "Milestone", id, "rebaseline", before, {
+      baselineDate: baseline,
+    });
+  });
+  revalidate();
+}
+
+export async function deleteMilestoneAction(formData: FormData) {
+  const user = await requireRole(["admin"]);
+  const id = reqStr(formData, "id");
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.milestone.findUnique({ where: { id } });
+    if (!before) return;
+    await tx.milestone.delete({ where: { id } }); // cascades subtasks
+    await audit(tx, user, "Milestone", id, "delete", before, null);
+  });
+  revalidate();
+}
+
+// --- Subtasks (owning engineer or admin) ------------------------------------
+
+/** Loads a subtask and asserts the user may mutate it. */
+async function assertSubtaskAccess(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  user: AuthUser,
+  subtaskId: string
+) {
+  const row = await tx.subtask.findUnique({ where: { id: subtaskId } });
+  if (!row) throw new Error("Subtask not found.");
+  if (user.role !== "admin" && row.ownerId !== user.id) {
+    throw new Error("Forbidden.");
+  }
+  return row;
+}
+
+export async function createSubtaskAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.role === "viewer") throw new Error("Forbidden.");
+  const milestoneId = reqStr(formData, "milestoneId");
+  const title = reqStr(formData, "title");
+  const due = ymdOrNull(formData, "dueDate");
+
+  // Engineers always own what they create. Admin may create on behalf of an
+  // engineer by passing ownerId; default to self otherwise.
+  let ownerId = user.id;
+  if (user.role === "admin") {
+    const requested = String(formData.get("ownerId") ?? "").trim();
+    if (requested) ownerId = requested;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const last = await tx.subtask.findFirst({
+      where: { milestoneId, ownerId },
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
+    const created = await tx.subtask.create({
+      data: {
+        milestoneId,
+        ownerId,
+        title,
+        dueDate: due,
+        position: (last?.position ?? -1) + 1,
+      },
+    });
+    await audit(tx, user, "Subtask", created.id, "create", null, {
+      milestoneId,
+      ownerId,
+      title,
+      dueDate: due,
+    });
+  });
+  revalidate();
+}
+
+export async function updateSubtaskAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.role === "viewer") throw new Error("Forbidden.");
+  const id = reqStr(formData, "id");
+  const title = reqStr(formData, "title");
+  const due = ymdOrNull(formData, "dueDate");
+
+  await prisma.$transaction(async (tx) => {
+    const before = await assertSubtaskAccess(tx, user, id);
+    await tx.subtask.update({ where: { id }, data: { title, dueDate: due } });
+    await audit(tx, user, "Subtask", id, "update", before, { title, dueDate: due });
+  });
+  revalidate();
+}
+
+export async function toggleSubtaskAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.role === "viewer") throw new Error("Forbidden.");
+  const id = reqStr(formData, "id");
+  const done = formData.get("done") === "on" || formData.get("done") === "true";
+
+  await prisma.$transaction(async (tx) => {
+    const before = await assertSubtaskAccess(tx, user, id);
+    const completedAt = done ? before.completedAt ?? new Date() : null;
+    await tx.subtask.update({ where: { id }, data: { completedAt } });
+    await audit(tx, user, "Subtask", id, done ? "complete" : "reopen", before, {
+      completedAt,
+    });
+  });
+  revalidate();
+}
+
+export async function deleteSubtaskAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.role === "viewer") throw new Error("Forbidden.");
+  const id = reqStr(formData, "id");
+  await prisma.$transaction(async (tx) => {
+    const before = await assertSubtaskAccess(tx, user, id);
+    await tx.subtask.delete({ where: { id } });
+    await audit(tx, user, "Subtask", id, "delete", before, null);
+  });
+  revalidate();
+}
+
+export async function moveSubtaskAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.role === "viewer") throw new Error("Forbidden.");
+  const id = reqStr(formData, "id");
+  const dir = reqStr(formData, "dir"); // "up" | "down"
+
+  await prisma.$transaction(async (tx) => {
+    const row = await assertSubtaskAccess(tx, user, id);
+    const neighbor = await tx.subtask.findFirst({
+      where: {
+        milestoneId: row.milestoneId,
+        ownerId: row.ownerId,
+        position: dir === "up" ? { lt: row.position } : { gt: row.position },
+      },
+      orderBy: { position: dir === "up" ? "desc" : "asc" },
+    });
+    if (!neighbor) return; // already at the edge
+    await tx.subtask.update({
+      where: { id: row.id },
+      data: { position: neighbor.position },
+    });
+    await tx.subtask.update({
+      where: { id: neighbor.id },
+      data: { position: row.position },
+    });
+  });
+  revalidate();
+}
+
+// --- shared audit helper ----------------------------------------------------
+
+async function audit(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  user: AuthUser,
+  entityType: string,
+  entityId: string,
+  action: string,
+  before: unknown,
+  after: unknown
+) {
+  await tx.auditLog.create({
+    data: {
+      actorUserId: user.id,
+      entityType,
+      entityId,
+      action,
+      before: before ? JSON.stringify(before) : null,
+      after: after ? JSON.stringify(after) : null,
+    },
+  });
+}

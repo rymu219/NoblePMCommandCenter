@@ -83,48 +83,40 @@ function SectionBlock({
   canEditSubtasks: boolean;
 }) {
   const accent = SECTION_ACCENT[section.key] ?? "bg-noble-black/40";
+  const isCompleted = section.key === "completed";
 
-  // The completed archive collapses so it stays "out of the way but not gone".
-  if (section.key === "completed") {
-    return (
-      <details className="group">
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-noble-black/70">
-          <span className={`h-2 w-2 rounded-full ${accent}`} />
-          {section.label} ({section.milestones.length})
-          <span className="text-[var(--muted)] group-open:hidden">▸</span>
-          <span className="hidden text-[var(--muted)] group-open:inline">▾</span>
-        </summary>
-        <div className="mt-2 flex flex-col gap-2">
-          {section.milestones.map((m) => (
+  // Every section is collapsible; only "Upcoming" is expanded by default so the
+  // lane opens focused on what's due soon.
+  return (
+    <details className="group" open={section.key === "upcoming"}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-noble-black/70">
+        <span className={`h-2 w-2 rounded-full ${accent}`} />
+        {section.label} ({section.milestones.length})
+        <span className="text-[var(--muted)] group-open:hidden">▸</span>
+        <span className="hidden text-[var(--muted)] group-open:inline">▾</span>
+      </summary>
+      <div className="mt-2 flex flex-col gap-2">
+        {section.milestones.map((m) =>
+          isCompleted ? (
             <CompletedCard
               key={m.id}
               milestone={m}
               ownerName={ownerName}
               canEditMilestones={canEditMilestones}
             />
-          ))}
-        </div>
-      </details>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <h3 className="flex items-center gap-2 text-xs font-semibold text-noble-black/70">
-        <span className={`h-2 w-2 rounded-full ${accent}`} />
-        {section.label} ({section.milestones.length})
-      </h3>
-      {section.milestones.map((m) => (
-        <MilestoneCard
-          key={m.id}
-          milestone={m}
-          ownerId={ownerId}
-          isUnassigned={isUnassigned}
-          canEditMilestones={canEditMilestones}
-          canEditSubtasks={canEditSubtasks}
-        />
-      ))}
-    </div>
+          ) : (
+            <MilestoneCard
+              key={m.id}
+              milestone={m}
+              ownerId={ownerId}
+              isUnassigned={isUnassigned}
+              canEditMilestones={canEditMilestones}
+              canEditSubtasks={canEditSubtasks}
+            />
+          )
+        )}
+      </div>
+    </details>
   );
 }
 

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { BoardSubtask } from "@/lib/board-loader";
 import { cueBadge } from "./cue-style";
+import { ThanksFlash } from "./thank-you";
 import {
   deleteSubtaskAction,
   moveSubtaskAction,
@@ -28,6 +29,7 @@ export function SubtaskRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [flash, setFlash] = useState(0);
   const done = subtask.completedAtIso !== null;
   const badge = cueBadge(subtask.cue, subtask.daysLate);
 
@@ -45,6 +47,7 @@ export function SubtaskRow({
   function toggle() {
     const fd = new FormData();
     fd.set("done", done ? "false" : "true");
+    if (!done) setFlash((f) => f + 1); // celebrate completion
     run(toggleSubtaskAction, fd);
   }
 
@@ -132,6 +135,7 @@ export function SubtaskRow({
           {badge.label}
         </span>
       ) : null}
+      <ThanksFlash trigger={flash} />
       {canEdit ? (
         <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <IconBtn label="Move up" disabled={isFirst || pending} onClick={() => move("up")}>

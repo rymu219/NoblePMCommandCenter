@@ -29,6 +29,11 @@ function reqStr(formData: FormData, field: string): string {
   return v;
 }
 
+function strOrNull(formData: FormData, field: string): string | null {
+  const v = String(formData.get(field) ?? "").trim();
+  return v ? v : null;
+}
+
 function revalidate(projectId?: string) {
   revalidatePath("/board");
   revalidatePath("/board/report");
@@ -53,8 +58,8 @@ export async function createMilestoneAction(formData: FormData) {
   const user = await requireUser();
   const projectId = reqStr(formData, "projectId");
   const title = reqStr(formData, "title");
-  const target = ymdOrNull(formData, "targetDate");
-  if (!target) throw new Error("A target date is required.");
+  const target = ymdOrNull(formData, "targetDate"); // optional — may be undated
+  const notes = strOrNull(formData, "notes");
 
   await prisma.$transaction(async (tx) => {
     await assertCanManageMilestone(tx, user, projectId);
@@ -67,7 +72,8 @@ export async function createMilestoneAction(formData: FormData) {
       data: {
         projectId,
         title,
-        baselineDate: target, // baseline frozen to the original commitment
+        notes,
+        baselineDate: target, // baseline frozen to the first committed target
         targetDate: target,
         position: (last?.position ?? -1) + 1,
         createdById: user.id,
@@ -86,9 +92,9 @@ export async function updateMilestoneAction(formData: FormData) {
   const user = await requireUser();
   const id = reqStr(formData, "id");
   const title = reqStr(formData, "title");
-  const target = ymdOrNull(formData, "targetDate");
+  const target = ymdOrNull(formData, "targetDate"); // optional — may be undated
   const actual = ymdOrNull(formData, "actualDate"); // empty = not complete
-  if (!target) throw new Error("A target date is required.");
+  const notes = strOrNull(formData, "notes");
 
   let projectId = "";
   await prisma.$transaction(async (tx) => {
@@ -96,9 +102,12 @@ export async function updateMilestoneAction(formData: FormData) {
     if (!before) throw new Error("Milestone not found.");
     await assertCanManageMilestone(tx, user, before.projectId);
     projectId = before.projectId;
+    // Freeze the baseline the first time a target date is set.
+    const baselineDate =
+      before.baselineDate == null && target != null ? target : before.baselineDate;
     await tx.milestone.update({
       where: { id },
-      data: { title, targetDate: target, actualDate: actual },
+      data: { title, notes, targetDate: target, actualDate: actual, baselineDate },
     });
     await audit(tx, user, "Milestone", id, "update", before, {
       title,
@@ -140,6 +149,41 @@ export async function deleteMilestoneAction(formData: FormData) {
     projectId = before.projectId;
     await tx.milestone.delete({ where: { id } }); // cascades subtasks
     await audit(tx, user, "Milestone", id, "delete", before, null);
+  });
+  revalidate(projectId);
+}
+
+/**
+ * Set an engineer's engagement on a milestone. support=true demotes them to
+ * "supporting" (stores an override row); support=false re-promotes to direct
+ * (deletes the row). Authorized for admin or the project owner.
+ */
+export async function setEngagementAction(formData: FormData) {
+  const user = await requireUser();
+  const milestoneId = reqStr(formData, "milestoneId");
+  const userId = reqStr(formData, "userId");
+  const support = formData.get("support") === "true";
+
+  let projectId = "";
+  await prisma.$transaction(async (tx) => {
+    const m = await tx.milestone.findUnique({
+      where: { id: milestoneId },
+      select: { projectId: true },
+    });
+    if (!m) throw new Error("Milestone not found.");
+    await assertCanManageMilestone(tx, user, m.projectId);
+    projectId = m.projectId;
+
+    if (support) {
+      await tx.milestoneEngagement.upsert({
+        where: { milestoneId_userId: { milestoneId, userId } },
+        update: { role: "support" },
+        create: { milestoneId, userId, role: "support" },
+      });
+    } else {
+      await tx.milestoneEngagement.deleteMany({ where: { milestoneId, userId } });
+    }
+    await audit(tx, user, "MilestoneEngagement", `${milestoneId}|${userId}`, support ? "demote" : "promote", null, { support });
   });
   revalidate(projectId);
 }

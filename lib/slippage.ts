@@ -56,25 +56,26 @@ export function subtaskCue(s: SubtaskDates, today: Date = todayUTC()): Cue {
 // --- Milestone-level (project focus) ----------------------------------------
 
 export interface MilestoneDates {
-  baselineDate: Date;
-  targetDate: Date;
+  baselineDate: Date | null;
+  targetDate: Date | null;
   actualDate: Date | null;
 }
 
 /** How far the target has been pushed from the original commitment. */
 export function targetDriftDays(m: MilestoneDates): number {
+  if (!m.targetDate || !m.baselineDate) return 0;
   return dayDelta(m.targetDate, m.baselineDate);
 }
 
-/** Days late vs the current target (null until complete). */
+/** Days late vs the current target (null until complete / undated). */
 export function milestoneVsTarget(m: MilestoneDates): number | null {
-  if (!m.actualDate) return null;
+  if (!m.actualDate || !m.targetDate) return null;
   return dayDelta(m.actualDate, m.targetDate);
 }
 
 /** Days late vs the ORIGINAL commitment — the headline "real slip". */
 export function milestoneVsBaseline(m: MilestoneDates): number | null {
-  if (!m.actualDate) return null;
+  if (!m.actualDate || !m.baselineDate) return null;
   return dayDelta(m.actualDate, m.baselineDate);
 }
 
@@ -84,6 +85,29 @@ export function milestoneCue(m: MilestoneDates, today: Date = todayUTC()): Cue {
     { dueDate: m.targetDate, completedAt: m.actualDate },
     today
   );
+}
+
+/** Board section a (direct) milestone falls into, by date. */
+export type MilestoneBucket =
+  | "undated"
+  | "overdue"
+  | "upcoming"
+  | "horizon"
+  | "completed";
+
+/** Days out to the next target that still counts as "Upcoming". */
+export const UPCOMING_DAYS = 14;
+
+export function milestoneBucket(
+  m: MilestoneDates,
+  today: Date = todayUTC()
+): MilestoneBucket {
+  if (m.actualDate) return "completed";
+  if (!m.targetDate) return "undated";
+  const d = dayDelta(m.targetDate, today);
+  if (d < 0) return "overdue";
+  if (d <= UPCOMING_DAYS) return "upcoming";
+  return "horizon";
 }
 
 // --- Aggregation ------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireRole, type AuthUser } from "@/lib/auth";
+import { requireUser, type AuthUser } from "@/lib/auth";
 import { parseYmd } from "@/lib/time-tracking";
 
 /*
@@ -11,9 +11,9 @@ import { parseYmd } from "@/lib/time-tracking";
  * revalidates the board + report. Permissions are re-checked here on the
  * server — never trust the client.
  *
- *   - Milestones: admin only (create, move target, record actual, re-baseline,
- *     delete). baselineDate is frozen at create; only the explicit re-baseline
- *     action changes it.
+ *   - Milestones: admin OR the project owner (create, move target, record
+ *     actual, re-baseline, delete). baselineDate is frozen at create; only the
+ *     explicit re-baseline action changes it.
  *   - Subtasks: the owning engineer OR admin (create, edit, toggle done,
  *     reorder, delete).
  */
@@ -29,21 +29,35 @@ function reqStr(formData: FormData, field: string): string {
   return v;
 }
 
-function revalidate() {
+function revalidate(projectId?: string) {
   revalidatePath("/board");
   revalidatePath("/board/report");
+  if (projectId) revalidatePath(`/projects/${projectId}`);
 }
 
-// --- Milestones (admin only) ------------------------------------------------
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/** Milestone management is allowed for admins and the project's owner. */
+async function assertCanManageMilestone(tx: Tx, user: AuthUser, projectId: string) {
+  if (user.role === "admin") return;
+  const proj = await tx.projectRow.findUnique({
+    where: { id: projectId },
+    select: { ownerId: true },
+  });
+  if (!proj || proj.ownerId !== user.id) throw new Error("Forbidden.");
+}
+
+// --- Milestones (admin or project owner) ------------------------------------
 
 export async function createMilestoneAction(formData: FormData) {
-  const user = await requireRole(["admin"]);
+  const user = await requireUser();
   const projectId = reqStr(formData, "projectId");
   const title = reqStr(formData, "title");
   const target = ymdOrNull(formData, "targetDate");
   if (!target) throw new Error("A target date is required.");
 
   await prisma.$transaction(async (tx) => {
+    await assertCanManageMilestone(tx, user, projectId);
     const last = await tx.milestone.findFirst({
       where: { projectId },
       orderBy: { position: "desc" },
@@ -65,20 +79,23 @@ export async function createMilestoneAction(formData: FormData) {
       targetDate: target,
     });
   });
-  revalidate();
+  revalidate(projectId);
 }
 
 export async function updateMilestoneAction(formData: FormData) {
-  const user = await requireRole(["admin"]);
+  const user = await requireUser();
   const id = reqStr(formData, "id");
   const title = reqStr(formData, "title");
   const target = ymdOrNull(formData, "targetDate");
   const actual = ymdOrNull(formData, "actualDate"); // empty = not complete
   if (!target) throw new Error("A target date is required.");
 
+  let projectId = "";
   await prisma.$transaction(async (tx) => {
     const before = await tx.milestone.findUnique({ where: { id } });
     if (!before) throw new Error("Milestone not found.");
+    await assertCanManageMilestone(tx, user, before.projectId);
+    projectId = before.projectId;
     await tx.milestone.update({
       where: { id },
       data: { title, targetDate: target, actualDate: actual },
@@ -89,36 +106,42 @@ export async function updateMilestoneAction(formData: FormData) {
       actualDate: actual,
     });
   });
-  revalidate();
+  revalidate(projectId);
 }
 
 export async function rebaselineMilestoneAction(formData: FormData) {
-  const user = await requireRole(["admin"]);
+  const user = await requireUser();
   const id = reqStr(formData, "id");
   const baseline = ymdOrNull(formData, "baselineDate");
   if (!baseline) throw new Error("A baseline date is required.");
 
+  let projectId = "";
   await prisma.$transaction(async (tx) => {
     const before = await tx.milestone.findUnique({ where: { id } });
     if (!before) throw new Error("Milestone not found.");
+    await assertCanManageMilestone(tx, user, before.projectId);
+    projectId = before.projectId;
     await tx.milestone.update({ where: { id }, data: { baselineDate: baseline } });
     await audit(tx, user, "Milestone", id, "rebaseline", before, {
       baselineDate: baseline,
     });
   });
-  revalidate();
+  revalidate(projectId);
 }
 
 export async function deleteMilestoneAction(formData: FormData) {
-  const user = await requireRole(["admin"]);
+  const user = await requireUser();
   const id = reqStr(formData, "id");
+  let projectId = "";
   await prisma.$transaction(async (tx) => {
     const before = await tx.milestone.findUnique({ where: { id } });
     if (!before) return;
+    await assertCanManageMilestone(tx, user, before.projectId);
+    projectId = before.projectId;
     await tx.milestone.delete({ where: { id } }); // cascades subtasks
     await audit(tx, user, "Milestone", id, "delete", before, null);
   });
-  revalidate();
+  revalidate(projectId);
 }
 
 // --- Subtasks (owning engineer or admin) ------------------------------------

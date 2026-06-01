@@ -48,6 +48,10 @@ export interface BoardMilestone {
   cue: Cue;
   vsBaseline: number | null;
   subtasks: BoardSubtask[];
+  /** Completed subtasks shown in this card (the lane engineer's). */
+  doneCount: number;
+  /** Total subtasks shown in this card. */
+  totalCount: number;
 }
 
 export interface BoardProject {
@@ -62,6 +66,8 @@ export interface BoardSwimlane {
   ownerName: string;
   isUnassigned: boolean;
   projects: BoardProject[];
+  /** Projects this engineer is assigned to — the add-milestone picker list. */
+  assignableProjects: Array<{ id: string; name: string }>;
 }
 
 export interface BoardData {
@@ -158,6 +164,7 @@ export async function loadBoard(viewer: AuthUser): Promise<BoardData> {
     m: (typeof milestones)[number],
     ownerId: string
   ): BoardMilestone {
+    const subs = subtasksByOwnerMs.get(`${ownerId}|${m.id}`) ?? [];
     return {
       id: m.id,
       projectId: m.projectId,
@@ -168,7 +175,9 @@ export async function loadBoard(viewer: AuthUser): Promise<BoardData> {
       driftDays: targetDriftDays(m),
       cue: milestoneCue(m, today),
       vsBaseline: milestoneVsBaseline(m),
-      subtasks: subtasksByOwnerMs.get(`${ownerId}|${m.id}`) ?? [],
+      subtasks: subs,
+      doneCount: subs.filter((s) => s.completedAtIso !== null).length,
+      totalCount: subs.length,
     };
   }
 
@@ -189,6 +198,7 @@ export async function loadBoard(viewer: AuthUser): Promise<BoardData> {
       ownerName: eng.name,
       isUnassigned: false,
       projects: projs,
+      assignableProjects: projectsByEngineer.get(eng.id) ?? [],
     };
   });
 
@@ -212,6 +222,7 @@ export async function loadBoard(viewer: AuthUser): Promise<BoardData> {
             buildMilestone(m, UNASSIGNED)
           ),
         })),
+        assignableProjects: [],
       });
     }
   }
@@ -341,4 +352,40 @@ function groupRows<T extends Measurable>(
   return [...groups.entries()]
     .map(([k, g]) => aggregate(k, g.label, g.items))
     .sort((a, b) => b.late - a.late || a.label.localeCompare(b.label));
+}
+
+// --- Project-page milestones ------------------------------------------------
+
+/**
+ * The board's BoardMilestone display shape, minus the per-engineer subtask
+ * list. doneCount/totalCount here are aggregated across ALL engineers'
+ * subtasks for the milestone (the project's total progress). The shape is
+ * compatible with the board's EditMilestone component.
+ */
+export type ProjectMilestoneView = Omit<BoardMilestone, "subtasks">;
+
+/** Milestones for a single project, for the project detail page. */
+export async function loadProjectMilestones(
+  projectId: string
+): Promise<ProjectMilestoneView[]> {
+  const today = todayUTC();
+  const milestones = await prisma.milestone.findMany({
+    where: { projectId },
+    orderBy: { position: "asc" },
+    include: { subtasks: { select: { completedAt: true } } },
+  });
+
+  return milestones.map((m) => ({
+    id: m.id,
+    projectId: m.projectId,
+    title: m.title,
+    baselineIso: ymd(m.baselineDate),
+    targetIso: ymd(m.targetDate),
+    actualIso: m.actualDate ? ymd(m.actualDate) : null,
+    driftDays: targetDriftDays(m),
+    cue: milestoneCue(m, today),
+    vsBaseline: milestoneVsBaseline(m),
+    doneCount: m.subtasks.filter((s) => s.completedAt !== null).length,
+    totalCount: m.subtasks.length,
+  }));
 }

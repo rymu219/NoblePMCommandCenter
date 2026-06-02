@@ -46,6 +46,13 @@
   --surface: #f5f4f0;
   --border: rgba(17, 25, 33, 0.12);
   --border-strong: rgba(17, 25, 33, 0.22);
+
+  /* Elevation — soft, low-spread, tinted with noble-black (not harsh black). */
+  --shadow-sm: 0 1px 2px rgba(17, 25, 33, 0.06);
+  --shadow-card: 0 1px 2px rgba(17, 25, 33, 0.05),
+    0 4px 12px rgba(17, 25, 33, 0.06);
+  --shadow-lift: 0 2px 4px rgba(17, 25, 33, 0.06),
+    0 12px 28px rgba(17, 25, 33, 0.12);
 }
 
 html, body {
@@ -64,9 +71,86 @@ body {
   border-radius: 3px;
 }
 
+/*
+ * Design-language primitives shared by the Home + Board redesign. Light theme
+ * with brand accents: elevated white cards, a hover lift, a branded hero band,
+ * and a tasteful first-paint entrance. Semantic accent colors are supplied by
+ * the callers (statusMeta bars, cue badges, role tokens) — these classes only
+ * own depth, shape, and motion.
+ */
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem; /* rounded-xl */
+  box-shadow: var(--shadow-card);
+}
+
+.card-interactive {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Branded header band: faint brand gradient with a thin red top accent. */
+.hero-band {
+  position: relative;
+  background: linear-gradient(135deg, var(--surface) 0%, #ffffff 60%);
+  border: 1px solid var(--border);
+  border-radius: 1rem; /* rounded-2xl */
+  box-shadow: var(--shadow-sm);
+}
+.hero-band::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: 1rem 1rem 0 0;
+  background: linear-gradient(
+    90deg,
+    var(--color-noble-red) 0%,
+    var(--color-noble-red) 60%,
+    var(--color-noble-gold) 100%
+  );
+}
+
+/* First-paint entrance for cards/sections. */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: fade-rise 320ms ease both;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .card-interactive,
+  .card-interactive:hover {
+    transition: none;
+    transform: none;
+  }
+  .animate-rise {
+    animation: none;
+  }
+}
+
 /* Print rules — keep the look of the source template */
 @media print {
   body { padding: 1cm; max-width: none; font-size: 11px; background: #fff; }
   .no-print { display: none !important; }
   .gantt-wrap { overflow-x: visible !important; }
+  /* Flatten elevation + gradients so print stays clean. */
+  .card, .hero-band { box-shadow: none !important; }
+  .hero-band { background: #fff !important; }
+  .hero-band::before { display: none !important; }
+  .card-interactive { transform: none !important; }
+  .animate-rise { animation: none !important; }
 }

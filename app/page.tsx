@@ -9,11 +9,30 @@ import {
 import { listProjectsForDashboard } from "@/lib/project-loader";
 import { AttentionStrip } from "@/components/attention-strip";
 import { PageContainer } from "@/components/page-container";
+import { PageHero } from "@/components/page-hero";
+import { StatChip } from "@/components/stat-chip";
 import { StatusPill } from "@/components/status-pill";
 import { StatusSummary } from "@/components/status-summary";
 import { deptDisplay, statusMeta } from "@/lib/status";
 import { PortfolioNote } from "./portfolio-note";
 import { PublishButton } from "./publish-button";
+
+/** Department → accent color for follow-up cards. Reuses the role tokens where
+ *  they exist; falls back to supplementary brand colors for the rest. */
+const DEPT_ACCENT: Record<string, string> = {
+  engineering: "var(--color-role-engineering)",
+  process: "var(--color-role-process)",
+  automation: "var(--color-role-automation)",
+  quality: "var(--color-role-quality)",
+  program_pm: "var(--color-noble-navy)",
+  operations: "var(--color-noble-slate)",
+  sales: "var(--color-noble-brick)",
+  purchasing: "var(--color-noble-navy)",
+  scheduling: "var(--color-noble-slate)",
+};
+function deptAccent(dept: string): string {
+  return DEPT_ACCENT[dept] ?? "var(--color-noble-navy)";
+}
 
 function todayUtc(): Date {
   const n = new Date();
@@ -75,44 +94,69 @@ export default async function DailyReportDashboard() {
     followups,
   };
 
+  const activeCount = projectsList.filter((p) => p.status !== "Pipeline").length;
+
   return (
     <PageContainer>
-      {/* Title strip */}
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <div className="text-[10px] font-semibold tracking-[0.18em] uppercase text-noble-red">
-            Daily Tooling Report — Draft
-          </div>
-          <h1 className="font-serif text-3xl font-medium text-noble-black">
-            {prettyDate(today)}
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
+      <PageHero
+        eyebrow="Daily Tooling Report — Draft"
+        title={prettyDate(today)}
+        subtitle={
+          <>
             Live draft of today&rsquo;s report. Publishing snapshots a permanent
             copy to <Link href="/reports" className="underline">Reports</Link>.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 no-print">
-          <Link
-            href="/projects"
-            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-noble-stone/40"
-          >
-            Projects (list)
-          </Link>
-          {isAdmin ? <PublishButton snapshot={snapshot} /> : null}
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <div className="flex items-center gap-2 no-print">
+            <Link
+              href="/projects"
+              className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-xs hover:bg-noble-stone/40"
+            >
+              Projects (list)
+            </Link>
+            {isAdmin ? <PublishButton snapshot={snapshot} /> : null}
+          </div>
+        }
+        stats={
+          <>
+            <StatChip
+              value={portfolio.length}
+              label="Programs"
+              accent="var(--color-noble-navy)"
+            />
+            <StatChip
+              value={activeCount}
+              label="Active projects"
+              accent="var(--color-role-process)"
+            />
+            <StatChip
+              value={Object.keys(followups).length}
+              label="Follow-up owners"
+              accent="var(--color-role-automation)"
+            />
+            <StatChip
+              value={attention.total}
+              label="Need attention"
+              accent="var(--color-noble-red)"
+            />
+          </>
+        }
+      />
 
       {/* WHAT NEEDS ATTENTION */}
       <AttentionStrip groups={attention} />
 
       {/* PRIORITY CALLOUT */}
       <ReportSection title="Priority Callout">
-        <PortfolioNote
-          kind="priority_callout"
-          initialBody={notes.priority_callout ?? ""}
-          placeholder="Top 3–5 things to act on today. One per line; start with - for bullets."
-          canEdit={canEdit}
-        />
+        <div className="card border-l-4 border-l-noble-red p-4">
+          <PortfolioNote
+            kind="priority_callout"
+            initialBody={notes.priority_callout ?? ""}
+            placeholder="Top 3–5 things to act on today. One per line; start with - for bullets."
+            canEdit={canEdit}
+          />
+        </div>
       </ReportSection>
 
       {/* PROGRAMS + PROJECTS */}
@@ -131,34 +175,38 @@ export default async function DailyReportDashboard() {
           key={group.prefix}
           title={`${group.programName ?? "Program"} — ${group.prefix}-`}
         >
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
             {group.projects.map((p) => (
               <article
                 key={p.projectId}
-                className="rounded-lg border border-[var(--border)] bg-white p-4"
+                className="card card-interactive overflow-hidden"
               >
-                <header className="flex items-start justify-between gap-4">
-                  <div>
-                    <Link
-                      href={`/projects/${p.projectId}`}
-                      className="font-serif text-lg font-medium text-noble-black hover:underline"
-                    >
-                      {p.projectName}
-                    </Link>
-                    <div className="mt-0.5 font-mono text-[10px] tracking-wider text-[var(--muted)]">
-                      {p.projectId}
+                {/* Status-colored top stripe (echoes the dashboard metric cards). */}
+                <div className={`h-1.5 ${statusMeta(p.status!.label).bar}`} />
+                <div className="p-4">
+                  <header className="flex items-start justify-between gap-4">
+                    <div>
+                      <Link
+                        href={`/projects/${p.projectId}`}
+                        className="font-serif text-lg font-medium text-noble-black hover:underline"
+                      >
+                        {p.projectName}
+                      </Link>
+                      <div className="mt-1 inline-block rounded bg-noble-stone/40 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-[var(--muted-strong)]">
+                        {p.projectId}
+                      </div>
                     </div>
+                    <StatusPill
+                      label={p.status!.label}
+                      qualifier={p.status!.qualifier}
+                    />
+                  </header>
+                  <div className="mt-3">
+                    <StatusSummary blocks={p.status!.blocks} />
                   </div>
-                  <StatusPill
-                    label={p.status!.label}
-                    qualifier={p.status!.qualifier}
-                  />
-                </header>
-                <div className="mt-3">
-                  <StatusSummary blocks={p.status!.blocks} />
-                </div>
-                <div className="mt-3 text-[10px] text-[var(--muted)]">
-                  Reported {p.status!.reportDate.toISOString().slice(0, 10)}
+                  <div className="mt-3 text-[10px] text-[var(--muted)]">
+                    Reported {p.status!.reportDate.toISOString().slice(0, 10)}
+                  </div>
                 </div>
               </article>
             ))}
@@ -169,7 +217,7 @@ export default async function DailyReportDashboard() {
       {/* Projects without any status update yet — surface so they don't disappear */}
       {portfolioNoStatus.length > 0 ? (
         <ReportSection title="No status posted yet">
-          <ul className="rounded-lg border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+          <ul className="card divide-y divide-[var(--border)] overflow-hidden">
             {portfolioNoStatus.flatMap((g) =>
               g.projects.map((p) => (
                 <li
@@ -208,10 +256,19 @@ export default async function DailyReportDashboard() {
             {Object.entries(followups).map(([dept, items]) => (
               <div
                 key={dept}
-                className="rounded-lg border border-[var(--border)] bg-white p-3"
+                className="card card-interactive border-l-4 p-3"
+                style={{ borderLeftColor: deptAccent(dept) }}
               >
-                <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-noble-black/70">
-                  {deptDisplay(dept)}
+                <div className="flex items-center justify-between gap-2">
+                  <div
+                    className="text-[10px] font-semibold tracking-[0.12em] uppercase"
+                    style={{ color: deptAccent(dept) }}
+                  >
+                    {deptDisplay(dept)}
+                  </div>
+                  <span className="rounded-full bg-noble-stone/40 px-2 py-0.5 text-[10px] font-semibold text-[var(--muted-strong)]">
+                    {items.length}
+                  </span>
                 </div>
                 <ul className="mt-2 space-y-1.5 text-sm">
                   {items.map((it) => (
@@ -242,33 +299,37 @@ export default async function DailyReportDashboard() {
 
       {/* KEY RISKS */}
       <ReportSection title="Key risks summary">
-        {atRiskPreview && !notes.key_risks ? (
-          <p className="mb-2 text-xs italic text-[var(--muted)]">
-            Auto-suggested from At Risk / Blocked projects (edit to refine):
-            <br />
-            {atRiskPreview.split("\n").map((l, i) => (
-              <span key={i} className="block">
-                {l}
-              </span>
-            ))}
-          </p>
-        ) : null}
-        <PortfolioNote
-          kind="key_risks"
-          initialBody={notes.key_risks ?? ""}
-          placeholder="Cross-portfolio risks. One per line; start with - for bullets."
-          canEdit={canEdit}
-        />
+        <div className="card border-l-4 border-l-[#BA7517] p-4">
+          {atRiskPreview && !notes.key_risks ? (
+            <p className="mb-2 text-xs italic text-[var(--muted)]">
+              Auto-suggested from At Risk / Blocked projects (edit to refine):
+              <br />
+              {atRiskPreview.split("\n").map((l, i) => (
+                <span key={i} className="block">
+                  {l}
+                </span>
+              ))}
+            </p>
+          ) : null}
+          <PortfolioNote
+            kind="key_risks"
+            initialBody={notes.key_risks ?? ""}
+            placeholder="Cross-portfolio risks. One per line; start with - for bullets."
+            canEdit={canEdit}
+          />
+        </div>
       </ReportSection>
 
       {/* FORWARD-LOOKING NOTES */}
       <ReportSection title="Forward-looking notes">
-        <PortfolioNote
-          kind="forward_looking"
-          initialBody={notes.forward_looking ?? ""}
-          placeholder="What to watch in the next window."
-          canEdit={canEdit}
-        />
+        <div className="card border-l-4 border-l-noble-navy p-4">
+          <PortfolioNote
+            kind="forward_looking"
+            initialBody={notes.forward_looking ?? ""}
+            placeholder="What to watch in the next window."
+            canEdit={canEdit}
+          />
+        </div>
       </ReportSection>
 
       <footer className="mt-12 border-t border-[var(--border)] pt-4 text-[10px] font-semibold tracking-[0.16em] uppercase text-noble-black/60 flex justify-between">
@@ -295,9 +356,13 @@ function ReportSection({
 }) {
   return (
     <section className="mb-8">
-      <h2 className="mb-3 text-[10px] font-semibold tracking-[0.18em] uppercase text-noble-red">
-        {title}
-      </h2>
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="h-4 w-1 rounded-full bg-noble-red" aria-hidden />
+        <h2 className="text-[11px] font-semibold tracking-[0.18em] uppercase text-noble-red">
+          {title}
+        </h2>
+        <span className="h-px flex-1 bg-[var(--border)]" aria-hidden />
+      </div>
       {children}
     </section>
   );

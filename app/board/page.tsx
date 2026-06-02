@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { loadBoard } from "@/lib/board-loader";
+import { PageHero } from "@/components/page-hero";
+import { StatChip } from "@/components/stat-chip";
 import { Swimlane } from "./swimlane";
 
 /*
@@ -11,26 +13,57 @@ export default async function BoardPage() {
   const user = await requireUser();
   const board = await loadBoard(user);
 
+  // Hero counts derived from the loaded lanes (no extra queries).
+  let openMilestones = 0;
+  let overdueMilestones = 0;
+  for (const lane of board.swimlanes) {
+    for (const section of lane.sections) {
+      if (section.key === "completed") continue;
+      openMilestones += section.milestones.length;
+      if (section.key === "overdue" || section.key === "undated") {
+        overdueMilestones += section.milestones.length;
+      }
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1400px] px-6 py-8">
-      <div className="mb-4 flex items-end justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-medium text-noble-black">
-            Command Center
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {board.canEditMilestones
-              ? "Every engineer's milestones and subtasks. You own milestone dates; engineers own their subtasks."
-              : "Your milestones and subtasks. Check off work as you go; milestone dates are set by your PM."}
-          </p>
-        </div>
-        <Link
-          href="/board/report"
-          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-noble-black hover:bg-noble-stone/40"
-        >
-          Slippage report →
-        </Link>
-      </div>
+      <PageHero
+        eyebrow="Command Center"
+        title="The Board"
+        subtitle={
+          board.canEditMilestones
+            ? "Every engineer's milestones and subtasks. You own milestone dates; engineers own their subtasks."
+            : "Your milestones and subtasks. Check off work as you go; milestone dates are set by your PM."
+        }
+        actions={
+          <Link
+            href="/board/report"
+            className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-xs text-noble-black no-print hover:bg-noble-stone/40"
+          >
+            Slippage report →
+          </Link>
+        }
+        stats={
+          <>
+            <StatChip
+              value={board.swimlanes.length}
+              label="Lanes"
+              accent="var(--color-noble-navy)"
+            />
+            <StatChip
+              value={openMilestones}
+              label="Open milestones"
+              accent="var(--color-role-process)"
+            />
+            <StatChip
+              value={overdueMilestones}
+              label="Overdue / undated"
+              accent="var(--color-noble-red)"
+            />
+          </>
+        }
+      />
 
       {board.swimlanes.length === 0 ? (
         <p className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-6 text-sm text-[var(--muted)]">

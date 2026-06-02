@@ -103,7 +103,7 @@ export function SubtaskRow({
 
   return (
     <div
-      className={`group flex items-center gap-2 py-1 pl-2 pr-2 text-sm ${
+      className={`group flex items-center gap-2 rounded py-1 pl-2 pr-2 text-sm transition-colors hover:bg-noble-stone/20 ${
         pending ? "opacity-60" : ""
       }`}
     >

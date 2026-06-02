@@ -51,7 +51,15 @@ export default async function AdminProjectsList() {
             <tr key={p.id} className="border-b border-[var(--border)]">
               <td className="px-3 py-2 font-mono text-xs tracking-wider">{p.id}</td>
               <td className="px-3 py-2">{p.name}</td>
-              <td className="px-3 py-2 text-xs">{p.status}</td>
+              <td className="px-3 py-2 text-xs">
+                {p.status === "pipeline" ? (
+                  <span className="inline-flex items-center gap-1 rounded-sm bg-[#BA7517] px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase text-white">
+                    Pipeline
+                  </span>
+                ) : (
+                  p.status
+                )}
+              </td>
               <td className="px-3 py-2 text-xs">{p.owner?.name ?? "—"}</td>
               <td className="px-3 py-2 text-right text-xs">
                 {p.assignments.length}

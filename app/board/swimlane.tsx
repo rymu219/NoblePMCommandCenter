@@ -10,6 +10,7 @@ import {
   AddMilestoneToLane,
   EditMilestone,
   EngagementToggle,
+  MilestoneComplete,
 } from "./milestone-editor";
 import { ThankYouLine } from "./thank-you";
 
@@ -177,13 +178,16 @@ function MilestoneCard({
               {milestone.notes}
             </p>
           ) : null}
-          {canEditMilestones && !isUnassigned ? (
-            <div className="no-print mt-1.5">
-              <EngagementToggle
-                milestoneId={milestone.id}
-                userId={ownerId}
-                isSupport={milestone.isSupport}
-              />
+          {canEditMilestones ? (
+            <div className="no-print mt-1.5 flex flex-wrap items-center gap-1.5">
+              <MilestoneComplete milestoneId={milestone.id} isComplete={false} />
+              {!isUnassigned ? (
+                <EngagementToggle
+                  milestoneId={milestone.id}
+                  userId={ownerId}
+                  isSupport={milestone.isSupport}
+                />
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -239,6 +243,11 @@ function CompletedCard({
           <div className="mt-1">
             <ThankYouLine name={ownerName} />
           </div>
+          {canEditMilestones ? (
+            <div className="no-print mt-1.5">
+              <MilestoneComplete milestoneId={milestone.id} isComplete={true} />
+            </div>
+          ) : null}
         </div>
         {canEditMilestones ? <EditMilestone milestone={milestone} /> : null}
       </div>

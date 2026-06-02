@@ -278,8 +278,9 @@ export default async function DailyReportDashboard() {
 
       {/* Hidden snapshot link to all-projects list for quick admin reference */}
       <p className="mt-4 text-xs text-[var(--muted)]">
-        Showing {projectsList.length} active projects across{" "}
-        {portfolio.length} programs.
+        Showing{" "}
+        {projectsList.filter((p) => p.status !== "Pipeline").length} active
+        projects across {portfolio.length} programs.
       </p>
     </PageContainer>
   );

@@ -8,6 +8,7 @@
 export type Role = "engineering" | "process" | "automation" | "quality";
 
 export type ProjectStatus =
+  | "Pipeline"
   | "Not started"
   | "Active"
   | "On hold"

@@ -24,6 +24,11 @@ export default async function ProjectsPage() {
                   {p.projectNumber}
                 </span>
                 <span>{p.name}</span>
+                {p.status === "Pipeline" ? (
+                  <span className="rounded-sm bg-[#BA7517] px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase text-white">
+                    Pipeline
+                  </span>
+                ) : null}
               </div>
               <span className="text-xs text-[var(--muted)]">
                 {p.status} · {p.owner}

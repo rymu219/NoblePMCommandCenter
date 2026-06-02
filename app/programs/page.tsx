@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 
 export default async function ProgramsPage() {
   const programs = await prisma.program.findMany({
+    // `000` is the reserved holding program for Pipeline (scoping) items —
+    // not a real program, so keep it out of the portfolio grid.
+    where: { prefix: { not: "000" } },
     include: { projects: true },
     orderBy: { prefix: "asc" },
   });

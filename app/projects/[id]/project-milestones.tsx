@@ -1,6 +1,10 @@
 import type { ProjectMilestoneView } from "@/lib/board-loader";
 import { cueBadge, driftBadge, needsDateBadge } from "@/app/board/cue-style";
-import { AddMilestone, EditMilestone } from "@/app/board/milestone-editor";
+import {
+  AddMilestone,
+  EditMilestone,
+  MilestoneComplete,
+} from "@/app/board/milestone-editor";
 import { ThankYouLine } from "@/app/board/thank-you";
 
 /*
@@ -106,6 +110,11 @@ function MilestoneRow({
           {done ? (
             <div className="mt-1">
               <ThankYouLine name="team" />
+            </div>
+          ) : null}
+          {canEdit ? (
+            <div className="no-print mt-1.5">
+              <MilestoneComplete milestoneId={milestone.id} isComplete={done} />
             </div>
           ) : null}
         </div>

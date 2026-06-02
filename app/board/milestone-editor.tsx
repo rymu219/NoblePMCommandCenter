@@ -7,6 +7,7 @@ import {
   deleteMilestoneAction,
   rebaselineMilestoneAction,
   setEngagementAction,
+  setMilestoneDoneAction,
   updateMilestoneAction,
 } from "./board-actions";
 
@@ -289,6 +290,50 @@ export function EditMilestone({ milestone }: { milestone: ProjectMilestoneView }
         </form>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One-click "Mark complete" / "Reopen" for a milestone. Stamps today's date
+ * as the actual completion (or clears it). Shown to admins / the project
+ * owner; the gear editor still allows a specific completion date.
+ */
+export function MilestoneComplete({
+  milestoneId,
+  isComplete,
+}: {
+  milestoneId: string;
+  isComplete: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <form
+      action={() => {
+        const fd = new FormData();
+        fd.set("id", milestoneId);
+        fd.set("complete", isComplete ? "false" : "true");
+        startTransition(async () => {
+          try {
+            await setMilestoneDoneAction(fd);
+          } catch (e) {
+            alert(e instanceof Error ? e.message : "Could not update milestone.");
+          }
+        });
+      }}
+    >
+      <button
+        type="submit"
+        disabled={pending}
+        title={isComplete ? "Reopen — clears the completion date" : "Mark complete (today)"}
+        className={
+          isComplete
+            ? "rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-noble-black/65 hover:bg-noble-stone/40 disabled:opacity-50"
+            : "rounded border border-[#0F6E56]/40 px-1.5 py-0.5 text-[10px] font-medium text-[#0F6E56] hover:bg-[#0F6E56]/10 disabled:opacity-50"
+        }
+      >
+        {isComplete ? "↺ Reopen" : "✓ Mark complete"}
+      </button>
+    </form>
   );
 }
 

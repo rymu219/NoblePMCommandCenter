@@ -76,7 +76,9 @@ model ProjectRow {
   program           Program             @relation(fields: [programPrefix], references: [prefix])
   name              String
   subtitle          String?
-  /// not_started | active | on_hold | complete | archived
+  /// pipeline | not_started | active | on_hold | complete | archived
+  /// `pipeline` = prospective work being scoped; not an official project yet,
+  /// excluded from rollups/status feed, flagged in Admin for setup.
   status            String              @default("active")
   ownerId           String?
   owner             User?               @relation("OwnedProjects", fields: [ownerId], references: [id])

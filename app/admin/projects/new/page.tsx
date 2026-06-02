@@ -101,12 +101,18 @@ export default async function NewProjectPage({
               defaultValue="active"
               className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
             >
+              <option value="pipeline">Pipeline — scoping, not official yet</option>
               <option value="not_started">Not started</option>
               <option value="active">Active</option>
               <option value="on_hold">On hold</option>
               <option value="complete">Complete</option>
               <option value="archived">Archived</option>
             </select>
+            <Hint>
+              <span className="font-medium">Pipeline</span> is a holding pen for
+              prospective work — kept out of rollups &amp; the daily report, and
+              flagged in Admin until you promote it to a real project.
+            </Hint>
           </label>
           <label className="block">
             <Lbl>Customer (optional)</Lbl>

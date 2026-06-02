@@ -50,7 +50,9 @@ export interface ProgramGroup {
  */
 export async function loadPortfolio(): Promise<ProgramGroup[]> {
   const projects = await prisma.projectRow.findMany({
-    where: { status: { not: "archived" } },
+    // `pipeline` (prospective, not-yet-official work) is excluded alongside
+    // archived so it never appears in the Daily Tooling Report portfolio.
+    where: { status: { notIn: ["archived", "pipeline"] } },
     include: { program: true, statusUpdates: { orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }], take: 1 } },
     orderBy: { id: "asc" },
   });

@@ -85,6 +85,7 @@ export default async function AdminProjectPage({
               defaultValue={project.status}
               className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
             >
+              <option value="pipeline">Pipeline — scoping, not official yet</option>
               <option value="not_started">Not started</option>
               <option value="active">Active</option>
               <option value="on_hold">On hold</option>

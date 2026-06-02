@@ -5,11 +5,16 @@ import { prisma } from "@/lib/prisma";
 
 export default async function AdminPage() {
   await requireRole(["admin"]).catch(() => redirect("/"));
-  const [users, projects, closes, entries] = await Promise.all([
+  const [users, projects, closes, entries, pipeline] = await Promise.all([
     prisma.user.count(),
     prisma.projectRow.count(),
     prisma.periodClose.findMany({ orderBy: [{ year: "desc" }, { month: "desc" }] }),
     prisma.timeEntry.count(),
+    prisma.projectRow.findMany({
+      where: { status: "pipeline" },
+      include: { owner: true },
+      orderBy: { lastUpdatedAt: "desc" },
+    }),
   ]);
 
   return (
@@ -29,6 +34,49 @@ export default async function AdminPage() {
         <Stat label="Time entries" value={entries} />
         <Stat label="Closed months" value={closes.length} />
       </div>
+
+      {pipeline.length > 0 ? (
+        <div className="mt-8 rounded-lg border border-[#BA7517]/40 bg-[#BA7517]/5 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded-sm bg-[#BA7517] px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase text-white">
+              Pipeline
+            </span>
+            <span className="text-sm font-medium text-noble-black">
+              {pipeline.length} {pipeline.length === 1 ? "item needs" : "items need"} to be set up as a project
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Prospective work being scoped. Kept out of rollups and the daily
+            report. Open one and switch its status off{" "}
+            <span className="font-medium">Pipeline</span> once it&rsquo;s an
+            official project.
+          </p>
+          <ul className="mt-3 divide-y divide-[#BA7517]/20 rounded-md border border-[#BA7517]/20 bg-white">
+            {pipeline.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-4 px-3 py-2 text-sm"
+              >
+                <span className="flex items-baseline gap-3">
+                  <span className="font-mono text-xs tracking-wider text-[var(--muted)]">
+                    {p.id}
+                  </span>
+                  <span className="text-noble-black">{p.name}</span>
+                  <span className="text-xs text-[var(--muted)]">
+                    {p.owner?.name ?? "unassigned"}
+                  </span>
+                </span>
+                <Link
+                  href={`/admin/projects/${p.id}`}
+                  className="rounded-md border border-[var(--border)] px-2 py-1 text-xs hover:bg-noble-stone/40"
+                >
+                  Set up →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <AdminCard

@@ -73,6 +73,7 @@ export async function loadProject(id: string): Promise<ProjectRecord | null> {
 
 function statusLabel(s: string): ProjectRecord["status"] {
   const map: Record<string, ProjectRecord["status"]> = {
+    pipeline: "Pipeline",
     not_started: "Not started",
     active: "Active",
     on_hold: "On hold",

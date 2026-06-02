@@ -84,7 +84,8 @@ export async function loadProgramRollup(
   if (!program) return null;
 
   const projects = await prisma.projectRow.findMany({
-    where: { programPrefix: prefix, status: { not: "archived" } },
+    // Pipeline (not-yet-official) projects are excluded from program rollups.
+    where: { programPrefix: prefix, status: { notIn: ["archived", "pipeline"] } },
     include: {
       owner: true,
       phases: true,

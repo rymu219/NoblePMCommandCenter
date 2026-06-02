@@ -195,6 +195,52 @@ async function seedBoardDemo(passwordHash: string) {
     create: { milestoneId: "demo-m3", userId: bob.id, role: "support" },
   });
 
+  // A PIPELINE (scoping-stage) project in the reserved "000" program. Pipeline
+  // projects are excluded from rollups + the status feed, but the board has no
+  // status filter: once a pipeline project is assigned to an engineer and given
+  // a milestone, it appears mixed into that engineer's lane like any other.
+  await prisma.program.upsert({
+    where: { prefix: "000" },
+    update: {},
+    create: { prefix: "000", name: "Pipeline" },
+  });
+  await prisma.projectRow.upsert({
+    where: { id: "000-001" },
+    update: { name: "Prospective Tool (pipeline demo)", status: "pipeline" },
+    create: {
+      id: "000-001",
+      programPrefix: "000",
+      name: "Prospective Tool (pipeline demo)",
+      status: "pipeline",
+      subtitle: "Scoping-stage work — not an official project yet.",
+    },
+  });
+  await prisma.projectAssignment.upsert({
+    where: { projectId_userId: { projectId: "000-001", userId: alice.id } },
+    update: {},
+    create: { projectId: "000-001", userId: alice.id },
+  });
+  await prisma.milestone.upsert({
+    where: { id: "demo-m6" },
+    update: {
+      projectId: "000-001",
+      title: "Feasibility review",
+      baselineDate: d("2026-06-10"),
+      targetDate: d("2026-06-10"),
+      actualDate: null,
+      position: 0,
+    },
+    create: {
+      id: "demo-m6",
+      projectId: "000-001",
+      title: "Feasibility review",
+      baselineDate: d("2026-06-10"),
+      targetDate: d("2026-06-10"),
+      actualDate: null, // due soon → shows in Alice's Upcoming section
+      position: 0,
+    },
+  });
+
   // Subtasks exercising done-late, overdue, due-soon, done-on-time.
   const subtasks = [
     { id: "demo-s1", milestoneId: "demo-m1", ownerId: alice.id, title: "CAD review", dueDate: d("2026-05-01"), completedAt: d("2026-05-05"), position: 0 }, // done late

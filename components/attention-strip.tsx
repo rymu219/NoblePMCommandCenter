@@ -39,7 +39,7 @@ function Card({ category, items }: { category: Category; items: AttentionItem[] 
   const shown = items.slice(0, 3);
   const extra = items.length - shown.length;
   return (
-    <div className={`rounded-lg border border-[var(--border)] border-l-4 ${category.accent} bg-white p-3`}>
+    <div className={`card card-interactive border-l-4 ${category.accent} p-3`}>
       <div className="flex items-baseline justify-between">
         <span className={`text-[10px] font-semibold tracking-[0.12em] uppercase ${category.labelColor}`}>
           {category.title}

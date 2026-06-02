@@ -23,6 +23,12 @@ function ymdOrNull(formData: FormData, field: string): Date | null {
   return v ? parseYmd(v) : null;
 }
 
+/** Today at UTC midnight — the default actual-completion stamp. */
+function todayUtc(): Date {
+  const n = new Date();
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+}
+
 function reqStr(formData: FormData, field: string): string {
   const v = String(formData.get(field) ?? "").trim();
   if (!v) throw new Error(`Missing ${field}.`);
@@ -113,6 +119,32 @@ export async function updateMilestoneAction(formData: FormData) {
       title,
       targetDate: target,
       actualDate: actual,
+    });
+  });
+  revalidate(projectId);
+}
+
+/**
+ * One-click complete / reopen for a milestone (admin or project owner).
+ * Marking complete stamps actualDate = today (UTC midnight) unless a
+ * completion date is already recorded; reopening clears it. The gear editor
+ * still lets the PM set a specific completion date.
+ */
+export async function setMilestoneDoneAction(formData: FormData) {
+  const user = await requireUser();
+  const id = reqStr(formData, "id");
+  const complete = formData.get("complete") === "true";
+
+  let projectId = "";
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.milestone.findUnique({ where: { id } });
+    if (!before) throw new Error("Milestone not found.");
+    await assertCanManageMilestone(tx, user, before.projectId);
+    projectId = before.projectId;
+    const actualDate = complete ? before.actualDate ?? todayUtc() : null;
+    await tx.milestone.update({ where: { id }, data: { actualDate } });
+    await audit(tx, user, "Milestone", id, complete ? "complete" : "reopen", before, {
+      actualDate,
     });
   });
   revalidate(projectId);

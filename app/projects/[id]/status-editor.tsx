@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveStatusUpdateAction } from "./status-actions";
+import { saveStatusUpdateAction, buildStatusDraftAction } from "./status-actions";
 import {
   COMMON_BLOCK_HEADINGS,
   OWNER_DEPTS,
@@ -48,6 +48,41 @@ export function StatusEditor({
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [draftNote, setDraftNote] = useState<string | null>(null);
+
+  function draftFromActivity() {
+    setErr(null);
+    setDraftNote(null);
+    setDrafting(true);
+    startTransition(async () => {
+      try {
+        const draft = await buildStatusDraftAction(projectId);
+        if (!draft.hasActivity) {
+          setDraftNote(
+            draft.sinceIso
+              ? `No structured activity since ${draft.sinceIso}. Writing from scratch.`
+              : "No recent structured activity to draft from."
+          );
+          return;
+        }
+        // Keep anything already typed; append the generated blocks after it.
+        const typed = blocks.filter((b) => b.heading.trim() || b.body.trim());
+        const generated = draft.blocks.map((b) => ({ id: nextId(), ...b }));
+        setBlocks([...typed, ...generated]);
+        if (draft.suggestedLabel) setLabel(draft.suggestedLabel);
+        setDraftNote(
+          `Drafted from activity${
+            draft.sinceIso ? ` since ${draft.sinceIso}` : ""
+          }. Edit freely — the private milestone reasons are not included.`
+        );
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Could not build a draft.");
+      } finally {
+        setDrafting(false);
+      }
+    });
+  }
 
   function addBlock(heading: string) {
     setBlocks((bs) => [...bs, { id: nextId(), heading, body: "" }]);
@@ -163,7 +198,25 @@ export function StatusEditor({
         </label>
       </div>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={draftFromActivity}
+          disabled={drafting}
+          className="rounded-md border border-noble-navy/40 bg-noble-navy/5 px-3 py-1 text-xs font-medium text-noble-navy hover:bg-noble-navy/10 disabled:opacity-60"
+        >
+          {drafting ? "Drafting…" : "✦ Draft from activity"}
+        </button>
+        {draftNote ? (
+          <span className="text-[11px] text-[var(--muted)]">{draftNote}</span>
+        ) : (
+          <span className="text-[11px] text-[var(--muted)]">
+            Fills blocks from what changed since your last update.
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-3">
         {blocks.map((b) => (
           <div key={b.id} className="rounded-md border border-[var(--border)] bg-[var(--surface)]/40 p-2">
             <div className="flex items-center gap-2">

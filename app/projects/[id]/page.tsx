@@ -161,6 +161,7 @@ export default async function ProjectPage({
             projectId={project.projectNumber}
             milestones={milestones}
             canEdit={canEdit}
+            isAdmin={isAdmin}
           />
         </SectionShell>
       ) : null}

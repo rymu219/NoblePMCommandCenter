@@ -390,13 +390,13 @@ export async function loadSlippageReport(viewer: AuthUser): Promise<SlippageRepo
   };
 }
 
-interface Measurable {
+export interface Measurable {
   daysLate: number | null;
   isCompleted: boolean;
   isOverdueOpen: boolean;
 }
 
-function groupRows<T extends Measurable>(
+export function groupRows<T extends Measurable>(
   items: T[],
   keyOf: (i: T) => string,
   labelOf: (i: T) => string

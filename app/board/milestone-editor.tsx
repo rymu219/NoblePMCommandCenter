@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { ProjectMilestoneView } from "@/lib/board-loader";
+import { REPLAN_REASONS } from "@/lib/replan-reasons";
 import {
   createMilestoneAction,
   deleteMilestoneAction,
@@ -31,6 +32,40 @@ const primaryBtn =
   "rounded-md bg-noble-black px-3 py-1.5 text-xs font-medium text-white hover:bg-noble-black/85 disabled:opacity-60";
 const secondaryBtn =
   "rounded-md border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-noble-stone/40";
+
+/**
+ * Admin-only cause capture for a committed-date move. Rendered when an admin
+ * pushes a milestone's target or re-baselines it; the reason is private (never
+ * shown to engineers) and feeds the Execution analytics. The select is required
+ * so a move can't be saved without naming its cause.
+ */
+function ReasonPicker() {
+  return (
+    <div className="mt-1 flex flex-col gap-2 rounded-md border border-noble-red/30 bg-noble-red/5 p-2.5">
+      <div className="flex flex-col gap-1">
+        <label className={fieldLabelCls}>Reason for the move (private)</label>
+        <select name="reason" required defaultValue="" className={inputCls}>
+          <option value="" disabled>
+            Why is this date moving?
+          </option>
+          {REPLAN_REASONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className={fieldLabelCls}>Note (optional)</label>
+        <input
+          name="reasonNote"
+          placeholder="Anything worth remembering…"
+          className={inputCls}
+        />
+      </div>
+    </div>
+  );
+}
 
 /** Title + optional target + notes — shared by the two create forms. */
 function MilestoneFields({ autoFocusTitle }: { autoFocusTitle?: boolean }) {
@@ -170,10 +205,22 @@ export function AddMilestoneToLane({
   );
 }
 
-export function EditMilestone({ milestone }: { milestone: ProjectMilestoneView }) {
+export function EditMilestone({
+  milestone,
+  isAdmin = false,
+}: {
+  milestone: ProjectMilestoneView;
+  /** Admins capture a private reason when they move a committed date. */
+  isAdmin?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [rebaseline, setRebaseline] = useState(false);
   const [pending, startTransition] = useTransition();
+  const originalTarget = milestone.targetIso ?? "";
+  const [target, setTarget] = useState(originalTarget);
+  // A "slip" the admin must explain: an already-committed target moved to a
+  // different, still-set date. Clearing the date or first-time dating isn't one.
+  const isSlipMove = isAdmin && originalTarget !== "" && target !== "" && target !== originalTarget;
 
   function run(action: (fd: FormData) => Promise<void>, fd: FormData, close = true) {
     fd.set("id", milestone.id);
@@ -214,7 +261,8 @@ export function EditMilestone({ milestone }: { milestone: ProjectMilestoneView }
             <input
               name="targetDate"
               type="date"
-              defaultValue={milestone.targetIso ?? ""}
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
               className={inputCls}
             />
           </div>
@@ -238,11 +286,19 @@ export function EditMilestone({ milestone }: { milestone: ProjectMilestoneView }
             className={`${inputCls} resize-y`}
           />
         </div>
+        {isSlipMove ? <ReasonPicker /> : null}
         <div className="flex flex-wrap items-center gap-2">
           <button type="submit" disabled={pending} className={primaryBtn}>
             Save
           </button>
-          <button type="button" onClick={() => setOpen(false)} className={secondaryBtn}>
+          <button
+            type="button"
+            onClick={() => {
+              setTarget(originalTarget);
+              setOpen(false);
+            }}
+            className={secondaryBtn}
+          >
             Cancel
           </button>
           <span className="flex-1" />
@@ -284,6 +340,11 @@ export function EditMilestone({ milestone }: { milestone: ProjectMilestoneView }
             required
             className="rounded-md border border-[var(--border)] bg-white px-2 py-1.5"
           />
+          {isAdmin ? (
+            <div className="w-full">
+              <ReasonPicker />
+            </div>
+          ) : null}
           <button type="submit" disabled={pending} className={primaryBtn}>
             Apply
           </button>

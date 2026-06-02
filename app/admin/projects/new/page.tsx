@@ -37,7 +37,8 @@ export default async function NewProjectPage({
       </h1>
       <p className="mt-1 text-sm text-[var(--muted)]">
         Project # is the primary key — pick any unused <span className="font-mono">XXX-XXX</span>
-        . If the 3-digit prefix is new, it creates a new Program row.
+        . If the 3-digit prefix is new, it creates a new Program row. For a
+        Pipeline item you can leave it blank and a placeholder is assigned.
       </p>
 
       {error ? (
@@ -52,12 +53,15 @@ export default async function NewProjectPage({
             <Lbl>Project #</Lbl>
             <input
               name="projectId"
-              required
               pattern="[0-9]{3}-[0-9]{3}"
               placeholder="647-008"
               className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 font-mono text-sm tracking-wider focus:border-noble-red/40 focus:outline-none"
             />
-            <Hint>Format <span className="font-mono">XXX-XXX</span> (digits).</Hint>
+            <Hint>
+              Format <span className="font-mono">XXX-XXX</span> (digits). Leave
+              blank for a <span className="font-medium">Pipeline</span> item —
+              we&rsquo;ll assign a placeholder.
+            </Hint>
           </label>
           <label className="block md:col-span-2">
             <Lbl>Project name</Lbl>

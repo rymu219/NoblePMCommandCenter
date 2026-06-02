@@ -8,6 +8,27 @@ import { requireRole } from "@/lib/auth";
 const PROJECT_NUMBER_RE = /^[0-9]{3}-[0-9]{3}$/;
 
 /**
+ * Reserved program prefix that holds Pipeline (scoping) items. When a
+ * Pipeline project is created without a number, it is auto-assigned the
+ * next `000-NNN` id. This prefix is hidden from the public Programs grid.
+ */
+const PIPELINE_PREFIX = "000";
+
+/** Next free `000-NNN` placeholder id for a Pipeline item. */
+async function nextPipelineId(): Promise<string> {
+  const rows = await prisma.projectRow.findMany({
+    where: { id: { startsWith: `${PIPELINE_PREFIX}-` } },
+    select: { id: true },
+  });
+  let max = 0;
+  for (const r of rows) {
+    const n = Number.parseInt(r.id.slice(4), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return `${PIPELINE_PREFIX}-${String(max + 1).padStart(3, "0")}`;
+}
+
+/**
  * Validates a Project #, ensures the Program row exists for the prefix
  * (creating it if needed), then inserts the Project row. Optional
  * sections are recorded in `templateToggles`.
@@ -15,7 +36,7 @@ const PROJECT_NUMBER_RE = /^[0-9]{3}-[0-9]{3}$/;
 export async function createProjectAction(formData: FormData) {
   const user = await requireRole(["admin"]);
 
-  const projectId = String(formData.get("projectId") ?? "").trim();
+  let projectId = String(formData.get("projectId") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const subtitle = String(formData.get("subtitle") ?? "").trim() || null;
   const ownerId = String(formData.get("ownerId") ?? "").trim() || null;
@@ -24,11 +45,20 @@ export async function createProjectAction(formData: FormData) {
   const customer = String(formData.get("customer") ?? "").trim() || null;
   const togglesRaw = formData.getAll("section").map((v) => String(v));
 
-  if (!PROJECT_NUMBER_RE.test(projectId)) {
-    redirect(`/admin/projects/new?error=${encodeURIComponent("Project # must be XXX-XXX (digits).")}`);
-  }
   if (!name) {
     redirect(`/admin/projects/new?error=${encodeURIComponent("Project name is required.")}`);
+  }
+
+  // Pipeline (scoping) items don't need a number up front — auto-assign a
+  // `000-NNN` placeholder. Every other status still requires an XXX-XXX.
+  const isPipeline = status === "pipeline";
+  if (!projectId) {
+    if (!isPipeline) {
+      redirect(`/admin/projects/new?error=${encodeURIComponent("Project # is required (or set status to Pipeline to auto-assign one).")}`);
+    }
+    projectId = await nextPipelineId();
+  } else if (!PROJECT_NUMBER_RE.test(projectId)) {
+    redirect(`/admin/projects/new?error=${encodeURIComponent("Project # must be XXX-XXX (digits).")}`);
   }
 
   const existing = await prisma.projectRow.findUnique({ where: { id: projectId } });
@@ -37,13 +67,16 @@ export async function createProjectAction(formData: FormData) {
   }
 
   const prefix = projectId.slice(0, 3);
+  const isPipelineProgram = prefix === PIPELINE_PREFIX;
   await prisma.program.upsert({
     where: { prefix },
-    update: { name: programName ?? undefined, customer: customer ?? undefined },
+    update: isPipelineProgram
+      ? {}
+      : { name: programName ?? undefined, customer: customer ?? undefined },
     create: {
       prefix,
-      name: programName ?? `${prefix}-`,
-      customer,
+      name: isPipelineProgram ? "Pipeline" : programName ?? `${prefix}-`,
+      customer: isPipelineProgram ? null : customer,
     },
   });
 

@@ -17,10 +17,13 @@ export function ProjectMilestones({
   projectId,
   milestones,
   canEdit,
+  isAdmin = false,
 }: {
   projectId: string;
   milestones: ProjectMilestoneView[];
   canEdit: boolean;
+  /** Admins capture a private reason when moving a committed date. */
+  isAdmin?: boolean;
 }) {
   if (milestones.length === 0 && !canEdit) {
     return (
@@ -36,7 +39,7 @@ export function ProjectMilestones({
   return (
     <div className="flex flex-col gap-2">
       {open.map((m) => (
-        <MilestoneRow key={m.id} milestone={m} canEdit={canEdit} />
+        <MilestoneRow key={m.id} milestone={m} canEdit={canEdit} isAdmin={isAdmin} />
       ))}
 
       {completed.length > 0 ? (
@@ -48,7 +51,7 @@ export function ProjectMilestones({
           </summary>
           <div className="mt-2 flex flex-col gap-2">
             {completed.map((m) => (
-              <MilestoneRow key={m.id} milestone={m} canEdit={canEdit} />
+              <MilestoneRow key={m.id} milestone={m} canEdit={canEdit} isAdmin={isAdmin} />
             ))}
           </div>
         </details>
@@ -66,9 +69,11 @@ export function ProjectMilestones({
 function MilestoneRow({
   milestone,
   canEdit,
+  isAdmin,
 }: {
   milestone: ProjectMilestoneView;
   canEdit: boolean;
+  isAdmin: boolean;
 }) {
   const cue = cueBadge(milestone.cue, milestone.vsBaseline);
   const drift = driftBadge(milestone.driftDays);
@@ -120,7 +125,7 @@ function MilestoneRow({
         </div>
         {canEdit ? (
           <div className="no-print">
-            <EditMilestone milestone={milestone} />
+            <EditMilestone milestone={milestone} isAdmin={isAdmin} />
           </div>
         ) : null}
       </div>

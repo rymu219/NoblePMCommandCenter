@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser, type AuthUser } from "@/lib/auth";
 import { parseYmd } from "@/lib/time-tracking";
+import { dayDelta } from "@/lib/slippage";
+import { UNSPECIFIED_REASON, isKnownReason } from "@/lib/replan-reasons";
 
 /*
  * Command Center mutations. Mirrors app/projects/[id]/section-actions.ts:
@@ -43,6 +45,7 @@ function strOrNull(formData: FormData, field: string): string | null {
 function revalidate(projectId?: string) {
   revalidatePath("/board");
   revalidatePath("/board/report");
+  revalidatePath("/execution");
   if (projectId) revalidatePath(`/projects/${projectId}`);
 }
 
@@ -56,6 +59,49 @@ async function assertCanManageMilestone(tx: Tx, user: AuthUser, projectId: strin
     select: { ownerId: true },
   });
   if (!proj || proj.ownerId !== user.id) throw new Error("Forbidden.");
+}
+
+/**
+ * Resolve the private cause reason for a committed-date move. Admins MUST pick a
+ * known category — that data powers the Execution analytics and is never shown
+ * to engineers. A non-admin owner may still move a date, but it is logged as
+ * "unspecified" (counts toward replan churn, not the cause breakdown).
+ */
+function resolveReason(
+  formData: FormData,
+  user: AuthUser
+): { reason: string; note: string | null } {
+  if (user.role !== "admin") return { reason: UNSPECIFIED_REASON, note: null };
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!isKnownReason(reason)) {
+    throw new Error("Choose a reason for moving this committed date.");
+  }
+  return { reason, note: strOrNull(formData, "reasonNote") };
+}
+
+/** Append a private MilestoneReplan row inside the caller's transaction. */
+async function recordReplan(
+  tx: Tx,
+  user: AuthUser,
+  milestoneId: string,
+  kind: "slip" | "rebaseline",
+  from: Date | null,
+  to: Date | null,
+  reason: string,
+  note: string | null
+) {
+  await tx.milestoneReplan.create({
+    data: {
+      milestoneId,
+      kind,
+      fromDate: from,
+      toDate: to,
+      deltaDays: from && to ? dayDelta(to, from) : 0,
+      reason,
+      note,
+      actorUserId: user.id,
+    },
+  });
 }
 
 // --- Milestones (admin or project owner) ------------------------------------
@@ -120,6 +166,16 @@ export async function updateMilestoneAction(formData: FormData) {
       targetDate: target,
       actualDate: actual,
     });
+    // Moving an already-committed target = a slip. Capture its private cause.
+    // First-time dating (null → date) and unchanged dates are not slips.
+    const isSlipMove =
+      before.targetDate != null &&
+      target != null &&
+      dayDelta(target, before.targetDate) !== 0;
+    if (isSlipMove) {
+      const { reason, note } = resolveReason(formData, user);
+      await recordReplan(tx, user, id, "slip", before.targetDate, target, reason, note);
+    }
   });
   revalidate(projectId);
 }
@@ -166,6 +222,10 @@ export async function rebaselineMilestoneAction(formData: FormData) {
     await audit(tx, user, "Milestone", id, "rebaseline", before, {
       baselineDate: baseline,
     });
+    // Re-baselining is an explicit reset of the original commitment — always
+    // record its private cause.
+    const { reason, note } = resolveReason(formData, user);
+    await recordReplan(tx, user, id, "rebaseline", before.baselineDate, baseline, reason, note);
   });
   revalidate(projectId);
 }

@@ -42,6 +42,7 @@ model User {
   closesPerformed PeriodClose[] @relation("ClosedBy")
   ownedSubtasks Subtask[]     @relation("OwnedSubtasks")
   milestoneEngagements MilestoneEngagement[] @relation("MilestoneEngagements")
+  milestoneReplans MilestoneReplan[] @relation("MilestoneReplans")
 }
 
 /// NextAuth-style sessions stored in DB for credentials provider.
@@ -375,8 +376,39 @@ model Milestone {
 
   subtasks     Subtask[]
   engagements  MilestoneEngagement[]
+  replans      MilestoneReplan[]
 
   @@index([projectId, position])
+}
+
+/// Private (admin-only) record of every time a milestone's committed date moves:
+/// a target-date "slip" or an explicit "rebaseline". Captures the REASON so the
+/// Execution analytics can break down *why* dates slip. Never surfaced to
+/// engineers — read only by the admin-only Execution page.
+model MilestoneReplan {
+  id          String    @id @default(cuid())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  /// "slip" — the current target moved; "rebaseline" — the baseline was reset.
+  kind        String
+  /// Previous date (target for a slip, baseline for a rebaseline). null if undated.
+  fromDate    DateTime?
+  /// New date being committed to.
+  toDate      DateTime?
+  /// toDate - fromDate in whole days; positive = pushed later. 0 if either null.
+  deltaDays   Int
+  /// Cause category: scope | estimate | dependency | capacity | external |
+  /// other | unspecified (legacy/backfilled or non-admin moves).
+  reason      String
+  /// Optional free-text admin context.
+  note        String?
+  actorUserId String
+  actor       User      @relation("MilestoneReplans", fields: [actorUserId], references: [id])
+  at          DateTime  @default(now())
+
+  @@index([milestoneId])
+  @@index([reason])
+  @@index([at])
 }
 
 /// Engineer-owned checklist item nested under a milestone. Created/edited/

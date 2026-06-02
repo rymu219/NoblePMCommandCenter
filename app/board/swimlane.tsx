@@ -267,7 +267,9 @@ function MilestoneCard({
             </div>
           ) : null}
         </div>
-        {canEditMilestones ? <EditMilestone milestone={milestone} /> : null}
+        {canEditMilestones ? (
+          <EditMilestone milestone={milestone} isAdmin={canEditMilestones} />
+        ) : null}
       </div>
 
       <div className="border-t border-[var(--border)] bg-[var(--surface)]/40">
@@ -334,7 +336,9 @@ function CompletedCard({
             </div>
           ) : null}
         </div>
-        {canEditMilestones ? <EditMilestone milestone={milestone} /> : null}
+        {canEditMilestones ? (
+          <EditMilestone milestone={milestone} isAdmin={canEditMilestones} />
+        ) : null}
       </div>
     </div>
   );

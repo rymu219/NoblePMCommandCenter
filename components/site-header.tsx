@@ -11,6 +11,7 @@ const NAV: Array<{ href: string; label: string; roles?: string[] }> = [
   { href: "/programs", label: "Programs" },
   { href: "/projects", label: "Projects" },
   { href: "/board", label: "Board" },
+  { href: "/execution", label: "Execution", roles: ["admin"] },
   { href: "/my-week", label: "My Week", roles: ["engineer", "admin"] },
   { href: "/admin", label: "Admin", roles: ["admin"] },
 ];

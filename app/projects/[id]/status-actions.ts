@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { buildStatusDraft, type StatusDraft } from "@/lib/status-draft";
 
 function todayUtc(): Date {
   const n = new Date();
@@ -116,6 +117,20 @@ export async function saveStatusUpdateAction(
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/");
   return created.id;
+}
+
+/**
+ * Read-only: assemble a draft status update from the project's structured
+ * activity since the last status (completed work, schedule moves, overdue and
+ * upcoming items). The editor pre-fills these blocks so the PM edits rather than
+ * writes from scratch. Never writes; honors the same edit permission as saving.
+ */
+export async function buildStatusDraftAction(
+  projectId: string
+): Promise<StatusDraft> {
+  const user = await requireUser();
+  if (user.role === "viewer") throw new Error("Forbidden.");
+  return buildStatusDraft(projectId);
 }
 
 export async function toggleActionItemAction(

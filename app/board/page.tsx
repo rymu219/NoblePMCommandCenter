@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { loadBoard } from "@/lib/board-loader";
+import { loadQualityBoard } from "@/lib/quality-loader";
 import { PageHero } from "@/components/page-hero";
 import { StatChip } from "@/components/stat-chip";
 import { Swimlane } from "./swimlane";
+import { QualityBoard } from "./quality-board";
 
 /*
  * Command Center board. Swimlanes are one-per-engineer; visibility is enforced
@@ -11,7 +13,11 @@ import { Swimlane } from "./swimlane";
  */
 export default async function BoardPage() {
   const user = await requireUser();
-  const board = await loadBoard(user);
+  const [board, quality] = await Promise.all([
+    loadBoard(user),
+    loadQualityBoard(),
+  ]);
+  const canEditQuality = user.role === "admin";
 
   // Hero counts derived from the loaded lanes (no extra queries).
   let openMilestones = 0;
@@ -82,6 +88,23 @@ export default async function BoardPage() {
           ))}
         </div>
       )}
+
+      {/* Quality department awareness — global, at the bottom of The Board. */}
+      <section className="mt-10">
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold text-noble-black">Quality</h2>
+          <p className="text-sm text-[var(--muted)]">
+            What the quality department is inspecting — for awareness. Active work
+            up top; completed inspections (with how they landed vs. target)
+            below.
+          </p>
+        </div>
+        <QualityBoard
+          active={quality.active}
+          completed={quality.completed}
+          canEdit={canEditQuality}
+        />
+      </section>
     </div>
   );
 }

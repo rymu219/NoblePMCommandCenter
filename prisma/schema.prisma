@@ -467,3 +467,40 @@ model Report {
 
   @@index([kind, reportDate])
 }
+
+/// Quality department awareness board — a GLOBAL (not project-scoped) list of
+/// inspections the quality team is running, shown at the bottom of The Board.
+/// Admin-populated; everyone can view. Active items (completedAt null) render in
+/// the top table; marking one complete moves it to the completed archive below.
+/// baselineDate freezes the first committed target so a later target move (slip)
+/// can be measured; the most recent slip's standard reason + note are kept on
+/// the row and carried into the completed archive (the "when & why it slipped").
+model QualityInspection {
+  id              String    @id @default(cuid())
+  item            String
+  /// Inspection method: keyence | cmm
+  method          String
+  /// Estimated duration in whole days. Optional.
+  estDurationDays Int?
+  /// Original committed target (UTC midnight), frozen when first dated. Drift =
+  /// targetDate - baselineDate. null until a date is set.
+  baselineDate    DateTime?
+  /// Current target (UTC midnight). null = no date yet.
+  targetDate      DateTime?
+  /// Completion timestamp; null = active (top table), non-null = completed
+  /// (bottom table). Lateness = completedAt day - targetDate.
+  completedAt     DateTime?
+  /// Standard reason for the most recent target move: machine | fixture | parts |
+  /// priority | personnel | rework | other. null until the target first slips.
+  slipReason      String?
+  /// Free-text note accompanying the most recent slip.
+  slipNote        String?
+  /// When the most recent target move was recorded.
+  slippedAt       DateTime?
+  position        Int       @default(0)
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([completedAt, position])
+}

@@ -104,6 +104,20 @@ check("repeat problems: recurring category drags score down", () => {
   assert.ok(r.topDriver?.includes("estimate"));
 });
 
+check("repeat problems: linked quality slips (kind 'quality') count too", () => {
+  const qualitySlips: ProblemEvent[] = Array.from({ length: 6 }, (_, i) => ({
+    at: daysAgo(10 + i * 5),
+    category: "Parts late / not ready",
+    deltaDays: 4,
+    groupId: null,
+    kind: "quality",
+  }));
+  const s = scoreRepeatProblems(qualitySlips, NOW);
+  assert.ok(s.score < 70, `recurring quality slips drag score: ${s.score}`);
+  assert.ok(s.topDriver?.includes("Parts late"));
+  assert.equal(s.observations, 6);
+});
+
 // --- Info Freshness (half-life) --------------------------------------------
 check("info freshness: fresh→~100, one-half-life→~50, chronic stale→low", () => {
   const fresh: InfoItem[] = [{ updatedAt: NOW, thresholdDays: 7, weight: 1 }];

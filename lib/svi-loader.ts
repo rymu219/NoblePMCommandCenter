@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { dayDelta, todayUTC } from "./slippage";
+import { slipReasonLabel } from "./quality";
 import {
   composeSVI,
   scoreDecisionSpeed,
@@ -24,6 +25,12 @@ import {
  * MilestoneReplan reasons feed Repeat Problems and Early Warning here, but the
  * dashboard card never renders the reason-level breakdown (that stays on the
  * admin-only Execution page).
+ *
+ * Quality inspections that are LINKED to a project also contribute: their
+ * recorded slip reasons are Repeat-Problem events, and a late completion (or an
+ * overdue-open inspection) is an Early-Warning event — where "pre-flagged" means
+ * the date was formally rescheduled before it bit (rescheduling = surfacing),
+ * a self-contained signal that doesn't lean on the project's status narrative.
  */
 
 /** How far back problem/adverse history is considered (chronicity needs depth). */
@@ -60,6 +67,14 @@ interface RawProject {
   statusUpdates: { reportDate: Date; statusLabel: string; createdAt: Date }[];
   sections: { kind: string; updatedAt: Date }[];
   projectUpdatedAt: Date;
+  /** Quality inspections linked to this project. */
+  quality: {
+    slipReason: string | null;
+    slippedAt: Date | null;
+    baselineDate: Date | null;
+    targetDate: Date | null;
+    completedAt: Date | null;
+  }[];
 }
 
 /** Turn one project's raw rows into a scored ProjectSVI. */
@@ -91,6 +106,17 @@ function computeFromRaw(raw: RawProject, snapshots: SviSnapshotPoint[], now: Dat
     ...raw.reworkAt
       .filter(inWindow)
       .map((at) => ({ at, category: "rework", deltaDays: 0, groupId: null, kind: "rework" as const })),
+    // Linked quality inspections that recorded a slip reason.
+    ...raw.quality
+      .filter((q) => q.slipReason && q.slippedAt && inWindow(q.slippedAt as Date))
+      .map((q) => ({
+        at: q.slippedAt as Date,
+        category: slipReasonLabel(q.slipReason as string),
+        deltaDays:
+          q.targetDate && q.baselineDate ? Math.max(0, dayDelta(q.targetDate, q.baselineDate)) : 0,
+        groupId: null,
+        kind: "quality" as const,
+      })),
   ];
 
   // --- Info Freshness -------------------------------------------------------
@@ -124,6 +150,29 @@ function computeFromRaw(raw: RawProject, snapshots: SviSnapshotPoint[], now: Dat
         severity: Math.min(60, Math.max(1, dayDelta(now, m.targetDate as Date))),
         preFlagged: preFlagged(m.targetDate as Date),
       })),
+    // Linked quality inspections completed late — surfaced early iff the date
+    // was formally rescheduled (slippedAt) before it landed late.
+    ...raw.quality
+      .filter(
+        (q) =>
+          q.completedAt &&
+          q.targetDate &&
+          dayDelta(q.completedAt as Date, q.targetDate) > 0 &&
+          inWindow(q.completedAt as Date)
+      )
+      .map((q) => ({
+        at: q.completedAt as Date,
+        severity: Math.min(60, Math.max(1, dayDelta(q.completedAt as Date, q.targetDate as Date))),
+        preFlagged: q.slippedAt !== null,
+      })),
+    // Linked quality inspections currently overdue and still open.
+    ...raw.quality
+      .filter((q) => !q.completedAt && q.targetDate && dayDelta(now, q.targetDate) > 0)
+      .map((q) => ({
+        at: q.targetDate as Date,
+        severity: Math.min(60, Math.max(1, dayDelta(now, q.targetDate as Date))),
+        preFlagged: q.slippedAt !== null,
+      })),
   ];
 
   return composeSVI(
@@ -140,14 +189,25 @@ function computeFromRaw(raw: RawProject, snapshots: SviSnapshotPoint[], now: Dat
 /** SVI for a single project, including its snapshot trend. */
 export async function loadProjectSVI(projectId: string): Promise<ProjectSVI> {
   const now = todayUTC();
-  const [actionItems, milestones, statusUpdates, sections, project, snaps] = await Promise.all([
-    prisma.actionItem.findMany({ where: { projectId } }),
-    prisma.milestone.findMany({ where: { projectId }, include: { replans: true } }),
-    prisma.statusUpdate.findMany({ where: { projectId }, orderBy: { reportDate: "asc" } }),
-    prisma.projectSection.findMany({ where: { projectId } }),
-    prisma.projectRow.findUnique({ where: { id: projectId }, select: { lastUpdatedAt: true } }),
-    prisma.sviSnapshot.findMany({ where: { projectId }, orderBy: { weekStart: "asc" } }),
-  ]);
+  const [actionItems, milestones, statusUpdates, sections, project, snaps, quality] =
+    await Promise.all([
+      prisma.actionItem.findMany({ where: { projectId } }),
+      prisma.milestone.findMany({ where: { projectId }, include: { replans: true } }),
+      prisma.statusUpdate.findMany({ where: { projectId }, orderBy: { reportDate: "asc" } }),
+      prisma.projectSection.findMany({ where: { projectId } }),
+      prisma.projectRow.findUnique({ where: { id: projectId }, select: { lastUpdatedAt: true } }),
+      prisma.sviSnapshot.findMany({ where: { projectId }, orderBy: { weekStart: "asc" } }),
+      prisma.qualityInspection.findMany({
+        where: { projectId },
+        select: {
+          slipReason: true,
+          slippedAt: true,
+          baselineDate: true,
+          targetDate: true,
+          completedAt: true,
+        },
+      }),
+    ]);
 
   const reopenIds = await prisma.auditLog.findMany({
     where: { entityType: "ActionItem", action: "reopen", entityId: { in: actionItems.map((a) => a.id) } },
@@ -165,6 +225,7 @@ export async function loadProjectSVI(projectId: string): Promise<ProjectSVI> {
     statusUpdates,
     sections: sections.map((s) => ({ kind: s.kind, updatedAt: s.updatedAt })),
     projectUpdatedAt: project?.lastUpdatedAt ?? now,
+    quality,
   };
 
   return computeFromRaw(raw, snaps, now);

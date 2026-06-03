@@ -15,6 +15,8 @@ import {
 import { PhasesEditor } from "@/components/dashboard/phases-editor";
 import { BudgetTracksEditor } from "@/components/dashboard/budget-tracks-editor";
 import { MetaEditor } from "@/components/dashboard/meta-editor";
+import { SviCard } from "@/components/svi/svi-card";
+import { loadProjectSVI } from "@/lib/svi-loader";
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null) return "—";
@@ -72,6 +74,9 @@ export default async function DashboardPage({
   const isAdmin = user?.role === "admin";
   const isOwner = user ? project.ownerId === user.id : false;
   const canEdit = isAdmin || isOwner;
+
+  // Execution-system health is leadership/owner context only.
+  const svi = canEdit ? await loadProjectSVI(id) : null;
 
   const health =
     (project.dashboardHealth as "on_schedule" | "at_risk" | "off_track" | null) ??
@@ -154,6 +159,13 @@ export default async function DashboardPage({
             ]}
           />
         </div>
+
+        {svi ? (
+          <>
+            <DashSectionLabel>EXECUTION HEALTH</DashSectionLabel>
+            <SviCard svi={svi} />
+          </>
+        ) : null}
 
         <DashSectionLabel>PROGRAM TIMELINE</DashSectionLabel>
         <ProgramTimeline phases={phaseRows} today={todayUtc} />

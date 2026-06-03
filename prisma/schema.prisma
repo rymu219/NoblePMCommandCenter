@@ -115,6 +115,7 @@ model ProjectRow {
   phases        Phase[]
   budgetTracks  BudgetTrack[]
   milestones    Milestone[]
+  sviSnapshots  SviSnapshot[]
 }
 
 /// Multi-month phase row that drives the Program Dashboard mini-Gantt.
@@ -326,6 +327,10 @@ model ActionItem {
   body            String
   dueDate         DateTime?
   completedAt     DateTime?
+  /// Decision impact tier for SVI Decision-Speed weighting: low | medium | high.
+  impact          String        @default("medium")
+  /// Whether this action is blocking progress (weighs heavier when overdue).
+  blocking        Boolean       @default(false)
   createdAt       DateTime      @default(now())
 
   @@index([projectId, completedAt])
@@ -452,6 +457,28 @@ model MilestoneEngagement {
   @@index([userId])
 }
 
+/// Weekly snapshot of a project's Systemic Vitality Index, written by an admin
+/// "Capture snapshot" action. Powers the trailing-trend arrow ("down N weeks")
+/// on the executive card. Idempotent per (project, ISO-week) via the unique key.
+model SviSnapshot {
+  id             String     @id @default(cuid())
+  projectId      String
+  project        ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Monday (UTC midnight) of the capture week — the trend bucket.
+  weekStart      DateTime
+  capturedAt     DateTime   @default(now())
+  composite      Float
+  decisionSpeed  Float
+  repeatProblems Float
+  infoFreshness  Float
+  earlyWarning   Float
+  /// high | moderate | low — qualifies the composite, never depresses it.
+  confidence     String
+
+  @@unique([projectId, weekStart])
+  @@index([projectId, weekStart])
+}
+
 /// Frozen, timestamped snapshot of a published report.
 model Report {
   id             String   @id @default(cuid())
@@ -478,6 +505,8 @@ model Report {
 model QualityInspection {
   id              String    @id @default(cuid())
   item            String
+  /// Category of work: programming | measurement | reporting | other
+  category        String?
   /// Inspection method: keyence | cmm
   method          String
   /// Estimated duration in whole days. Optional.

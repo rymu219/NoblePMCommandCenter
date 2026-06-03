@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { parseYmd } from "@/lib/time-tracking";
-import { isKnownMethod, isKnownSlipReason } from "@/lib/quality";
+import { isKnownCategory, isKnownMethod, isKnownSlipReason } from "@/lib/quality";
 
 /*
  * Quality awareness board mutations (bottom of The Board). Admin-only — the
@@ -49,6 +49,8 @@ export async function createQualityInspectionAction(formData: FormData) {
   const user = await requireAdmin();
   const item = String(formData.get("item") ?? "").trim();
   if (!item) throw new Error("Item is required.");
+  const category = String(formData.get("category") ?? "").trim();
+  if (!isKnownCategory(category)) throw new Error("Pick a category.");
   const method = String(formData.get("method") ?? "").trim();
   if (!isKnownMethod(method)) throw new Error("Pick an inspection method.");
   const targetDate = ymdOrNull(formData, "targetDate");
@@ -62,6 +64,7 @@ export async function createQualityInspectionAction(formData: FormData) {
   const created = await prisma.qualityInspection.create({
     data: {
       item,
+      category,
       method,
       estDurationDays,
       // Freeze the original commitment at create so later moves measure slip.
@@ -98,6 +101,8 @@ export async function updateQualityInspectionAction(
 
   const item = String(formData.get("item") ?? "").trim();
   if (!item) throw new Error("Item is required.");
+  const category = String(formData.get("category") ?? "").trim();
+  if (!isKnownCategory(category)) throw new Error("Pick a category.");
   const method = String(formData.get("method") ?? "").trim();
   if (!isKnownMethod(method)) throw new Error("Pick an inspection method.");
   const targetDate = ymdOrNull(formData, "targetDate");
@@ -111,6 +116,7 @@ export async function updateQualityInspectionAction(
 
   const data: {
     item: string;
+    category: string;
     method: string;
     estDurationDays: number | null;
     targetDate: Date | null;
@@ -118,7 +124,7 @@ export async function updateQualityInspectionAction(
     slipReason?: string | null;
     slipNote?: string | null;
     slippedAt?: Date | null;
-  } = { item, method, estDurationDays, targetDate };
+  } = { item, category, method, estDurationDays, targetDate };
 
   if (existing.baselineDate === null && targetDate !== null) {
     // First time it gets a date — establish the baseline, not a slip.

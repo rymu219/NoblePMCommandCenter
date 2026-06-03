@@ -96,6 +96,24 @@ export interface ProjectOption {
   name: string;
 }
 
+/** Active + completed inspections linked to one project (for the project page). */
+export async function loadProjectQuality(projectId: string): Promise<QualityBoardData> {
+  const rows = await prisma.qualityInspection.findMany({
+    where: { projectId },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: { project: { select: { id: true, name: true } } },
+  });
+  const active: QualityRow[] = [];
+  const completed: QualityRow[] = [];
+  for (const m of rows) {
+    (m.completedAt ? completed : active).push(toRow(m));
+  }
+  // Active: soonest target first (undated last). Completed: most recent first.
+  active.sort((a, b) => (a.targetIso ?? "9999").localeCompare(b.targetIso ?? "9999"));
+  completed.sort((a, b) => (b.completedIso ?? "").localeCompare(a.completedIso ?? ""));
+  return { active, completed };
+}
+
 /** Projects offered in the inspection's project picker — all but archived. */
 export async function loadQualityProjectOptions(): Promise<ProjectOption[]> {
   return prisma.projectRow.findMany({

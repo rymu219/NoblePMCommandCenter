@@ -17,12 +17,14 @@ import { StatusBlocks } from "@/components/status-blocks";
 import { buildGanttLegend } from "@/lib/types";
 import { loadProject } from "@/lib/project-loader";
 import { loadProjectMilestones } from "@/lib/board-loader";
+import { loadProjectQuality } from "@/lib/quality-loader";
 import { loadLatestStatus } from "@/lib/status-loader";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusEditor } from "./status-editor";
 import { OpenActionItems } from "./open-action-items";
 import { ProjectMilestones } from "./project-milestones";
+import { ProjectQuality } from "@/components/quality/project-quality";
 
 interface Toggles {
   summary_cards: boolean;
@@ -69,7 +71,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, latest, user, openItems, rowMeta, milestones] = await Promise.all([
+  const [project, latest, user, openItems, rowMeta, milestones, quality] = await Promise.all([
     loadProject(id),
     loadLatestStatus(id),
     getCurrentUser(),
@@ -82,6 +84,7 @@ export default async function ProjectPage({
       select: { templateToggles: true, ownerId: true },
     }),
     loadProjectMilestones(id),
+    loadProjectQuality(id),
   ]);
   if (!project) notFound();
 
@@ -163,6 +166,12 @@ export default async function ProjectPage({
             canEdit={canEdit}
             isAdmin={isAdmin}
           />
+        </SectionShell>
+      ) : null}
+
+      {quality.active.length > 0 || quality.completed.length > 0 ? (
+        <SectionShell title="Quality">
+          <ProjectQuality active={quality.active} completed={quality.completed} />
         </SectionShell>
       ) : null}
 

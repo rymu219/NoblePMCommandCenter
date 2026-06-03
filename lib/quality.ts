@@ -25,6 +25,29 @@ export function isKnownMethod(value: string): boolean {
   return QUALITY_METHODS.some((m) => m.value === value);
 }
 
+/** Category of work the quality team is doing, in display order. */
+export const QUALITY_CATEGORIES = [
+  { value: "programming", label: "Programming" },
+  { value: "measurement", label: "Measurement" },
+  { value: "reporting", label: "Reporting" },
+  { value: "other", label: "Other" },
+] as const;
+
+export type QualityCategory = (typeof QUALITY_CATEGORIES)[number]["value"];
+
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  QUALITY_CATEGORIES.map((c) => [c.value, c.label])
+);
+
+/** Human label for a stored category value; falls back to the raw value. */
+export function categoryLabel(value: string): string {
+  return CATEGORY_LABELS[value] ?? value;
+}
+
+export function isKnownCategory(value: string): boolean {
+  return QUALITY_CATEGORIES.some((c) => c.value === value);
+}
+
 /** Standard reasons offered when a quality inspection's target date moves. */
 export const QUALITY_SLIP_REASONS = [
   { value: "machine", label: "Equipment / machine availability" },

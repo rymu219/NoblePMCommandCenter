@@ -3,8 +3,10 @@
 import { useState, useTransition } from "react";
 import { SaveError } from "@/components/save-error";
 import {
+  QUALITY_CATEGORIES,
   QUALITY_METHODS,
   QUALITY_SLIP_REASONS,
+  categoryLabel,
   methodLabel,
   slipReasonLabel,
 } from "@/lib/quality";
@@ -27,6 +29,7 @@ const fieldLabelCls =
 
 interface FormInitial {
   item: string;
+  category: string;
   method: string;
   targetIso: string;
   estDurationDays: string;
@@ -55,6 +58,7 @@ function InspectionForm({
   onCancel?: () => void;
 }) {
   const [item, setItem] = useState(initial.item);
+  const [category, setCategory] = useState(initial.category);
   const [method, setMethod] = useState(initial.method);
   const [target, setTarget] = useState(initial.targetIso);
   const [est, setEst] = useState(initial.estDurationDays);
@@ -67,6 +71,7 @@ function InspectionForm({
   function submit() {
     const fd = new FormData();
     fd.set("item", item);
+    fd.set("category", category);
     fd.set("method", method);
     fd.set("targetDate", target);
     fd.set("estDurationDays", est);
@@ -88,6 +93,23 @@ function InspectionForm({
             placeholder="What is being inspected…"
             className={`${inputCls} mt-1 block w-full`}
           />
+        </label>
+        <label>
+          <span className={fieldLabelCls}>Category</span>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className={`${inputCls} mt-1 block`}
+          >
+            <option value="" disabled>
+              Pick…
+            </option>
+            {QUALITY_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           <span className={fieldLabelCls}>Method</span>
@@ -186,6 +208,15 @@ function InspectionForm({
   );
 }
 
+function CategoryPill({ category }: { category: string | null }) {
+  if (!category) return <span className="text-[var(--muted)]">—</span>;
+  return (
+    <span className="rounded-full bg-noble-stone/60 px-2 py-0.5 text-[11px] font-medium text-noble-black/80">
+      {categoryLabel(category)}
+    </span>
+  );
+}
+
 function MethodPill({ method }: { method: string }) {
   return (
     <span className="rounded-full bg-noble-navy/10 px-2 py-0.5 text-[11px] font-medium text-noble-navy">
@@ -269,6 +300,7 @@ export function QualityBoard({
             <thead>
               <tr className="border-b border-[var(--border)]">
                 <th className={headCls}>Item</th>
+                <th className={headCls}>Category</th>
                 <th className={headCls}>Method</th>
                 <th className={headCls}>Target</th>
                 <th className={headCls}>Est. (d)</th>
@@ -280,12 +312,13 @@ export function QualityBoard({
               {active.map((row) =>
                 editingId === row.id ? (
                   <tr key={row.id} className="border-b border-[var(--border)]">
-                    <td className={cellCls} colSpan={canEdit ? 6 : 5}>
+                    <td className={cellCls} colSpan={canEdit ? 7 : 6}>
                       <InspectionForm
                         mode="edit"
                         hasBaseline={row.baselineIso !== null}
                         initial={{
                           item: row.item,
+                          category: row.category ?? "",
                           method: row.method,
                           targetIso: row.targetIso ?? "",
                           estDurationDays:
@@ -316,6 +349,9 @@ export function QualityBoard({
                   >
                     <td className={`${cellCls} font-medium text-noble-black`}>
                       {row.item}
+                    </td>
+                    <td className={cellCls}>
+                      <CategoryPill category={row.category} />
                     </td>
                     <td className={cellCls}>
                       <MethodPill method={row.method} />
@@ -383,12 +419,13 @@ export function QualityBoard({
               )}
               {adding ? (
                 <tr>
-                  <td className={cellCls} colSpan={canEdit ? 6 : 5}>
+                  <td className={cellCls} colSpan={canEdit ? 7 : 6}>
                     <InspectionForm
                       mode="add"
                       hasBaseline={false}
                       initial={{
                         item: "",
+                        category: "",
                         method: "",
                         targetIso: "",
                         estDurationDays: "",
@@ -431,6 +468,7 @@ export function QualityBoard({
             <thead>
               <tr className="border-b border-[var(--border)]">
                 <th className={headCls}>Item</th>
+                <th className={headCls}>Category</th>
                 <th className={headCls}>Method</th>
                 <th className={headCls}>Target</th>
                 <th className={headCls}>Completed</th>
@@ -447,6 +485,9 @@ export function QualityBoard({
                 >
                   <td className={`${cellCls} font-medium text-noble-black`}>
                     {row.item}
+                  </td>
+                  <td className={cellCls}>
+                    <CategoryPill category={row.category} />
                   </td>
                   <td className={cellCls}>
                     <MethodPill method={row.method} />

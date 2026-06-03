@@ -11,6 +11,7 @@ import { dayDelta, todayUTC } from "./slippage";
 export interface QualityRow {
   id: string;
   item: string;
+  category: string | null;
   method: string;
   estDurationDays: number | null;
   baselineIso: string | null;
@@ -30,6 +31,7 @@ export interface QualityRow {
 function toRow(m: {
   id: string;
   item: string;
+  category: string | null;
   method: string;
   estDurationDays: number | null;
   baselineDate: Date | null;
@@ -47,6 +49,7 @@ function toRow(m: {
   return {
     id: m.id,
     item: m.item,
+    category: m.category,
     method: m.method,
     estDurationDays: m.estDurationDays,
     baselineIso: m.baselineDate ? ymd(m.baselineDate) : null,

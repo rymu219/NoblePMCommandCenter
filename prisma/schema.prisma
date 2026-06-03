@@ -478,6 +478,8 @@ model Report {
 model QualityInspection {
   id              String    @id @default(cuid())
   item            String
+  /// Category of work: programming | measurement | reporting | other
+  category        String?
   /// Inspection method: keyence | cmm
   method          String
   /// Estimated duration in whole days. Optional.

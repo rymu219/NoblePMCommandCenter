@@ -18,6 +18,8 @@ interface ActionEdit {
   ownerDept: string;
   body: string;
   dueDate: string;
+  impact: "low" | "medium" | "high";
+  blocking: boolean;
 }
 
 interface Props {
@@ -97,7 +99,7 @@ export function StatusEditor({
   function addAction() {
     setActions((as) => [
       ...as,
-      { id: nextId(), ownerDept: "engineering", body: "", dueDate: "" },
+      { id: nextId(), ownerDept: "engineering", body: "", dueDate: "", impact: "medium", blocking: false },
     ]);
   }
   function updateAction(id: number, patch: Partial<ActionEdit>) {
@@ -126,6 +128,8 @@ export function StatusEditor({
             ownerDept: a.ownerDept,
             body: a.body,
             dueDate: a.dueDate || null,
+            impact: a.impact,
+            blocking: a.blocking,
           })),
       })
     );
@@ -295,6 +299,29 @@ export function StatusEditor({
                 onChange={(e) => updateAction(a.id, { dueDate: e.target.value })}
                 className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs"
               />
+              <select
+                value={a.impact}
+                onChange={(e) =>
+                  updateAction(a.id, { impact: e.target.value as ActionEdit["impact"] })
+                }
+                title="Decision impact — weights the execution-health score"
+                className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs"
+              >
+                <option value="low">Low impact</option>
+                <option value="medium">Med impact</option>
+                <option value="high">High impact</option>
+              </select>
+              <label
+                className="flex items-center gap-1 text-[11px] text-noble-black/70"
+                title="Blocking — counts heavier when overdue"
+              >
+                <input
+                  type="checkbox"
+                  checked={a.blocking}
+                  onChange={(e) => updateAction(a.id, { blocking: e.target.checked })}
+                />
+                Blocking
+              </label>
               <button
                 type="button"
                 onClick={() => removeAction(a.id)}

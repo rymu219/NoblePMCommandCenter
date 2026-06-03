@@ -2,9 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { loadExecutionReport, type ExecutionReport } from "@/lib/execution-loader";
+import { loadPortfolioSVI } from "@/lib/svi-loader";
 import { PageHero } from "@/components/page-hero";
 import { StatChip } from "@/components/stat-chip";
 import { SectionShell } from "@/components/section-shell";
+import { SviPortfolioTable } from "@/components/svi/svi-portfolio-table";
+import { SviSnapshotButton } from "./svi-snapshot-button";
 import type { SlippageRow } from "@/lib/slippage";
 
 /*
@@ -16,7 +19,7 @@ import type { SlippageRow } from "@/lib/slippage";
  */
 export default async function ExecutionPage() {
   await requireRole(["admin"]).catch(() => redirect("/"));
-  const report: ExecutionReport = await loadExecutionReport();
+  const [report, sviRows] = await Promise.all([loadExecutionReport(), loadPortfolioSVI()]);
   const { kpis } = report;
 
   const fmtDays = (n: number | null) => (n === null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(1)}d`);
@@ -70,6 +73,19 @@ export default async function ExecutionPage() {
           </>
         }
       />
+
+      <SectionShell
+        title="Systemic Vitality Index"
+        actions={<SviSnapshotButton />}
+      >
+        <p className="mb-2 text-xs text-[var(--muted)]">
+          A leading indicator of each project&apos;s execution-system health (0–100),
+          worst first. Composite of decision speed, repeat problems, info freshness,
+          and early warning. Confidence qualifies the score; capture a snapshot to
+          build the weekly trend. Open a project&apos;s dashboard for the full read.
+        </p>
+        <SviPortfolioTable rows={sviRows} />
+      </SectionShell>
 
       <SectionShell title="Why dates slip">
         <CauseBreakdown rows={report.causeBreakdown} />

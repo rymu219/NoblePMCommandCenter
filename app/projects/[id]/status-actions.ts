@@ -26,7 +26,13 @@ interface ActionItemInput {
   ownerDept: string;
   body: string;
   dueDate?: string | null;
+  /** Decision impact tier for SVI weighting. */
+  impact?: "low" | "medium" | "high";
+  /** Whether this action is blocking progress. */
+  blocking?: boolean;
 }
+
+const IMPACTS = ["low", "medium", "high"] as const;
 
 /**
  * Server action invoked by the Status editor on the Project page.
@@ -87,6 +93,8 @@ export async function saveStatusUpdateAction(
           ownerDept: a.ownerDept,
           body: a.body,
           dueDate: a.dueDate ? new Date(a.dueDate) : null,
+          impact: a.impact && IMPACTS.includes(a.impact) ? a.impact : "medium",
+          blocking: a.blocking === true,
         },
       });
     }

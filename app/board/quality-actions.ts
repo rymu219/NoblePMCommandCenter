@@ -44,6 +44,19 @@ function revalidate() {
   revalidatePath("/board");
 }
 
+/**
+ * Resolve the optional project link from the form. Returns the id if the field
+ * is set and the project exists, null if blank. Throws on an unknown id so a
+ * stale picker can't dangle a bad reference.
+ */
+async function resolveProjectId(formData: FormData): Promise<string | null> {
+  const id = String(formData.get("projectId") ?? "").trim();
+  if (!id) return null;
+  const exists = await prisma.projectRow.findUnique({ where: { id }, select: { id: true } });
+  if (!exists) throw new Error("Pick a valid project.");
+  return id;
+}
+
 /** Create a new active quality inspection. baselineDate is frozen to the target. */
 export async function createQualityInspectionAction(formData: FormData) {
   const user = await requireAdmin();
@@ -55,6 +68,7 @@ export async function createQualityInspectionAction(formData: FormData) {
   if (!isKnownMethod(method)) throw new Error("Pick an inspection method.");
   const targetDate = ymdOrNull(formData, "targetDate");
   const estDurationDays = intOrNull(formData, "estDurationDays");
+  const projectId = await resolveProjectId(formData);
 
   const max = await prisma.qualityInspection.aggregate({
     where: { completedAt: null },
@@ -64,6 +78,7 @@ export async function createQualityInspectionAction(formData: FormData) {
   const created = await prisma.qualityInspection.create({
     data: {
       item,
+      projectId,
       category,
       method,
       estDurationDays,
@@ -107,6 +122,7 @@ export async function updateQualityInspectionAction(
   if (!isKnownMethod(method)) throw new Error("Pick an inspection method.");
   const targetDate = ymdOrNull(formData, "targetDate");
   const estDurationDays = intOrNull(formData, "estDurationDays");
+  const projectId = await resolveProjectId(formData);
 
   const prevTarget = existing.targetDate ? existing.targetDate.getTime() : null;
   const nextTarget = targetDate ? targetDate.getTime() : null;
@@ -116,6 +132,7 @@ export async function updateQualityInspectionAction(
 
   const data: {
     item: string;
+    projectId: string | null;
     category: string;
     method: string;
     estDurationDays: number | null;
@@ -124,7 +141,7 @@ export async function updateQualityInspectionAction(
     slipReason?: string | null;
     slipNote?: string | null;
     slippedAt?: Date | null;
-  } = { item, category, method, estDurationDays, targetDate };
+  } = { item, projectId, category, method, estDurationDays, targetDate };
 
   if (existing.baselineDate === null && targetDate !== null) {
     // First time it gets a date — establish the baseline, not a slip.
@@ -139,6 +156,65 @@ export async function updateQualityInspectionAction(
     data.slipReason = reason;
     data.slipNote = strOrNull(formData, "slipNote");
     data.slippedAt = new Date();
+  }
+
+  await prisma.qualityInspection.update({ where: { id }, data });
+  await prisma.auditLog.create({
+    data: {
+      actorUserId: user.id,
+      entityType: "QualityInspection",
+      entityId: id,
+      action: isSlip ? "slip" : "update",
+      after: isSlip
+        ? JSON.stringify({ slipReason: data.slipReason, targetDate })
+        : undefined,
+    },
+  });
+  revalidate();
+}
+
+/**
+ * Reschedule just the target date of an active inspection — a focused slip
+ * capture. If a baseline already exists and the date actually moves, a standard
+ * reason is required (same rule as the edit form). If the item was undated, this
+ * establishes the baseline instead of counting as a slip.
+ */
+export async function rescheduleQualityInspectionAction(
+  id: string,
+  formData: FormData
+) {
+  const user = await requireAdmin();
+  const existing = await prisma.qualityInspection.findUnique({ where: { id } });
+  if (!existing) throw new Error("Inspection not found.");
+
+  const targetDate = ymdOrNull(formData, "targetDate");
+  if (!targetDate) throw new Error("Pick a new target date.");
+
+  const prevTarget = existing.targetDate ? existing.targetDate.getTime() : null;
+  const targetChanged = prevTarget !== targetDate.getTime();
+  if (!targetChanged) throw new Error("That's already the target date.");
+
+  const isSlip = existing.baselineDate !== null;
+
+  const data: {
+    targetDate: Date;
+    baselineDate?: Date;
+    slipReason?: string;
+    slipNote?: string | null;
+    slippedAt?: Date;
+  } = { targetDate };
+
+  if (isSlip) {
+    const reason = String(formData.get("slipReason") ?? "").trim();
+    if (!isKnownSlipReason(reason)) {
+      throw new Error("Pick a reason for the date change.");
+    }
+    data.slipReason = reason;
+    data.slipNote = strOrNull(formData, "slipNote");
+    data.slippedAt = new Date();
+  } else {
+    // No baseline yet — this date becomes the original commitment.
+    data.baselineDate = targetDate;
   }
 
   await prisma.qualityInspection.update({ where: { id }, data });

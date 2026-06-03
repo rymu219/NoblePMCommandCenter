@@ -11,6 +11,10 @@ import { dayDelta, todayUTC } from "./slippage";
 export interface QualityRow {
   id: string;
   item: string;
+  /** Linked project id (XXX-XXX), or null when unassigned. */
+  projectId: string | null;
+  /** Linked project name, or null when unassigned. */
+  projectName: string | null;
   category: string | null;
   method: string;
   estDurationDays: number | null;
@@ -40,6 +44,7 @@ function toRow(m: {
   slipReason: string | null;
   slipNote: string | null;
   slippedAt: Date | null;
+  project: { id: string; name: string } | null;
 }): QualityRow {
   const today = todayUTC();
   const slipDays =
@@ -49,6 +54,8 @@ function toRow(m: {
   return {
     id: m.id,
     item: m.item,
+    projectId: m.project?.id ?? null,
+    projectName: m.project?.name ?? null,
     category: m.category,
     method: m.method,
     estDurationDays: m.estDurationDays,
@@ -72,6 +79,7 @@ export interface QualityBoardData {
 export async function loadQualityBoard(): Promise<QualityBoardData> {
   const rows = await prisma.qualityInspection.findMany({
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: { project: { select: { id: true, name: true } } },
   });
   const active: QualityRow[] = [];
   const completed: QualityRow[] = [];
@@ -81,4 +89,18 @@ export async function loadQualityBoard(): Promise<QualityBoardData> {
   // Completed: most-recently finished first.
   completed.sort((a, b) => (b.completedIso ?? "").localeCompare(a.completedIso ?? ""));
   return { active, completed };
+}
+
+export interface ProjectOption {
+  id: string;
+  name: string;
+}
+
+/** Projects offered in the inspection's project picker — all but archived. */
+export async function loadQualityProjectOptions(): Promise<ProjectOption[]> {
+  return prisma.projectRow.findMany({
+    where: { status: { not: "archived" } },
+    select: { id: true, name: true },
+    orderBy: { id: "asc" },
+  });
 }

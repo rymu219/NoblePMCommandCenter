@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { loadBoard } from "@/lib/board-loader";
-import { loadQualityBoard } from "@/lib/quality-loader";
+import { loadQualityBoard, loadQualityProjectOptions } from "@/lib/quality-loader";
 import { PageHero } from "@/components/page-hero";
 import { StatChip } from "@/components/stat-chip";
 import { Swimlane } from "./swimlane";
@@ -13,11 +13,13 @@ import { QualityBoard } from "./quality-board";
  */
 export default async function BoardPage() {
   const user = await requireUser();
-  const [board, quality] = await Promise.all([
+  const canEditQuality = user.role === "admin";
+  const [board, quality, qualityProjects] = await Promise.all([
     loadBoard(user),
     loadQualityBoard(),
+    // Only admins edit the quality board, so only they need the picker options.
+    canEditQuality ? loadQualityProjectOptions() : Promise.resolve([]),
   ]);
-  const canEditQuality = user.role === "admin";
 
   // Hero counts derived from the loaded lanes (no extra queries).
   let openMilestones = 0;
@@ -102,6 +104,7 @@ export default async function BoardPage() {
         <QualityBoard
           active={quality.active}
           completed={quality.completed}
+          projects={qualityProjects}
           canEdit={canEditQuality}
         />
       </section>

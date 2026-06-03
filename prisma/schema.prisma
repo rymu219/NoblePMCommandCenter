@@ -116,6 +116,7 @@ model ProjectRow {
   budgetTracks  BudgetTrack[]
   milestones    Milestone[]
   sviSnapshots  SviSnapshot[]
+  qualityInspections QualityInspection[]
 }
 
 /// Multi-month phase row that drives the Program Dashboard mini-Gantt.
@@ -505,6 +506,10 @@ model Report {
 model QualityInspection {
   id              String    @id @default(cuid())
   item            String
+  /// Optional link to the project this inspection is for. SetNull on delete so
+  /// the inspection survives if the project is removed. null = unassigned.
+  projectId       String?
+  project         ProjectRow? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   /// Category of work: programming | measurement | reporting | other
   category        String?
   /// Inspection method: keyence | cmm
@@ -532,4 +537,5 @@ model QualityInspection {
   updatedAt       DateTime  @updatedAt
 
   @@index([completedAt, position])
+  @@index([projectId])
 }

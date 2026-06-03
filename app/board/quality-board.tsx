@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { SaveError } from "@/components/save-error";
+import { ProjectCombobox, type ProjectOption } from "@/components/project-combobox";
 import {
   QUALITY_CATEGORIES,
   QUALITY_METHODS,
@@ -14,6 +15,7 @@ import type { QualityRow } from "@/lib/quality-loader";
 import {
   createQualityInspectionAction,
   updateQualityInspectionAction,
+  rescheduleQualityInspectionAction,
   completeQualityInspectionAction,
   reopenQualityInspectionAction,
   deleteQualityInspectionAction,
@@ -27,8 +29,94 @@ const headCls =
 const fieldLabelCls =
   "text-[10px] font-semibold uppercase tracking-wider text-noble-black/60";
 
+// --- Sorting ----------------------------------------------------------------
+
+type SortKey =
+  | "item"
+  | "project"
+  | "category"
+  | "method"
+  | "target"
+  | "est"
+  | "slip"
+  | "completed"
+  | "result";
+type SortDir = "asc" | "desc";
+interface SortState {
+  key: SortKey;
+  dir: SortDir;
+}
+
+/** Comparable value for a column; null sorts last regardless of direction. */
+function valueFor(row: QualityRow, key: SortKey): string | number | null {
+  switch (key) {
+    case "item":
+      return row.item.toLowerCase();
+    case "project":
+      return row.projectId;
+    case "category":
+      return row.category ? categoryLabel(row.category).toLowerCase() : null;
+    case "method":
+      return methodLabel(row.method).toLowerCase();
+    case "target":
+      return row.targetIso;
+    case "est":
+      return row.estDurationDays;
+    case "slip":
+      return row.slipDays;
+    case "completed":
+      return row.completedIso;
+    case "result":
+      return row.lateDays;
+  }
+}
+
+function sortRows(rows: QualityRow[], sort: SortState | null): QualityRow[] {
+  if (!sort) return rows;
+  const factor = sort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = valueFor(a, sort.key);
+    const bv = valueFor(b, sort.key);
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1; // nulls last
+    if (bv === null) return -1;
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * factor;
+    return String(av).localeCompare(String(bv)) * factor;
+  });
+}
+
+function SortHeader({
+  label,
+  colKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  colKey: SortKey;
+  sort: SortState | null;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sort?.key === colKey;
+  const arrow = active ? (sort?.dir === "asc" ? "▲" : "▼") : "↕";
+  return (
+    <th className={headCls}>
+      <button
+        type="button"
+        onClick={() => onSort(colKey)}
+        className="inline-flex items-center gap-1 hover:text-noble-black"
+      >
+        {label}
+        <span className={active ? "text-noble-black/70" : "text-noble-black/25"}>{arrow}</span>
+      </button>
+    </th>
+  );
+}
+
+// --- Forms ------------------------------------------------------------------
+
 interface FormInitial {
   item: string;
+  projectId: string | null;
   category: string;
   method: string;
   targetIso: string;
@@ -43,6 +131,7 @@ interface FormInitial {
 function InspectionForm({
   mode,
   initial,
+  projects,
   hasBaseline,
   busy,
   error,
@@ -51,6 +140,7 @@ function InspectionForm({
 }: {
   mode: "add" | "edit";
   initial: FormInitial;
+  projects: ProjectOption[];
   hasBaseline: boolean;
   busy: boolean;
   error: string | null;
@@ -58,6 +148,7 @@ function InspectionForm({
   onCancel?: () => void;
 }) {
   const [item, setItem] = useState(initial.item);
+  const [projectId, setProjectId] = useState<string | null>(initial.projectId);
   const [category, setCategory] = useState(initial.category);
   const [method, setMethod] = useState(initial.method);
   const [target, setTarget] = useState(initial.targetIso);
@@ -71,6 +162,7 @@ function InspectionForm({
   function submit() {
     const fd = new FormData();
     fd.set("item", item);
+    fd.set("projectId", projectId ?? "");
     fd.set("category", category);
     fd.set("method", method);
     fd.set("targetDate", target);
@@ -93,6 +185,12 @@ function InspectionForm({
             placeholder="What is being inspected…"
             className={`${inputCls} mt-1 block w-full`}
           />
+        </label>
+        <label className="min-w-[220px]">
+          <span className={fieldLabelCls}>Project (optional)</span>
+          <div className="mt-1">
+            <ProjectCombobox projects={projects} value={projectId} onChange={setProjectId} />
+          </div>
         </label>
         <label>
           <span className={fieldLabelCls}>Category</span>
@@ -150,37 +248,12 @@ function InspectionForm({
       </div>
 
       {targetMoved ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-md bg-[#BA7517]/10 p-2">
-          <label>
-            <span className={fieldLabelCls}>
-              Reason for the date change
-            </span>
-            <select
-              value={slipReason}
-              onChange={(e) => setSlipReason(e.target.value)}
-              required
-              className={`${inputCls} mt-1 block`}
-            >
-              <option value="" disabled>
-                Pick a reason…
-              </option>
-              {QUALITY_SLIP_REASONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex-1 min-w-[200px]">
-            <span className={fieldLabelCls}>Note (optional)</span>
-            <input
-              value={slipNote}
-              onChange={(e) => setSlipNote(e.target.value)}
-              placeholder="Context for the slip…"
-              className={`${inputCls} mt-1 block w-full`}
-            />
-          </label>
-        </div>
+        <SlipReasonFields
+          reason={slipReason}
+          note={slipNote}
+          onReason={setSlipReason}
+          onNote={setSlipNote}
+        />
       ) : null}
 
       <SaveError message={error} />
@@ -204,6 +277,143 @@ function InspectionForm({
           {busy ? "Saving…" : mode === "add" ? "Add inspection" : "Save changes"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Standard slip reason + optional note, shown whenever a target date moves. */
+function SlipReasonFields({
+  reason,
+  note,
+  onReason,
+  onNote,
+}: {
+  reason: string;
+  note: string;
+  onReason: (v: string) => void;
+  onNote: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md bg-[#BA7517]/10 p-2">
+      <label>
+        <span className={fieldLabelCls}>Reason for the date change</span>
+        <select
+          value={reason}
+          onChange={(e) => onReason(e.target.value)}
+          required
+          className={`${inputCls} mt-1 block`}
+        >
+          <option value="" disabled>
+            Pick a reason…
+          </option>
+          {QUALITY_SLIP_REASONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex-1 min-w-[200px]">
+        <span className={fieldLabelCls}>Note (optional)</span>
+        <input
+          value={note}
+          onChange={(e) => onNote(e.target.value)}
+          placeholder="Context for the slip…"
+          className={`${inputCls} mt-1 block w-full`}
+        />
+      </label>
+    </div>
+  );
+}
+
+/**
+ * Focused reschedule: just the new target date (+ a required reason once the
+ * inspection has an established baseline). Faster than the full edit form.
+ */
+function RescheduleForm({
+  initialTarget,
+  hasBaseline,
+  busy,
+  error,
+  onSubmit,
+  onCancel,
+}: {
+  initialTarget: string;
+  hasBaseline: boolean;
+  busy: boolean;
+  error: string | null;
+  onSubmit: (fd: FormData) => void;
+  onCancel: () => void;
+}) {
+  const [target, setTarget] = useState(initialTarget);
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+
+  const moved = target !== "" && target !== initialTarget;
+  const needsReason = hasBaseline && moved;
+
+  function submit() {
+    const fd = new FormData();
+    fd.set("targetDate", target);
+    if (needsReason) {
+      fd.set("slipReason", reason);
+      fd.set("slipNote", note);
+    }
+    onSubmit(fd);
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-[#BA7517]/40 bg-[#BA7517]/5 p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <label>
+          <span className={fieldLabelCls}>New target date</span>
+          <input
+            type="date"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className={`${inputCls} mt-1 block`}
+          />
+        </label>
+        {needsReason ? (
+          <SlipReasonFields reason={reason} note={note} onReason={setReason} onNote={setNote} />
+        ) : (
+          <span className="pb-1 text-[11px] text-[var(--muted)]">
+            {hasBaseline ? "Pick a later/earlier date." : "Sets the first committed date (no slip)."}
+          </span>
+        )}
+      </div>
+      <SaveError message={error} />
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-[var(--border)] px-3 py-1 text-xs hover:bg-noble-stone/40"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || !moved || (needsReason && !reason)}
+          className="rounded-md bg-[#BA7517] px-3 py-1 text-xs font-medium text-white hover:bg-[#BA7517]/85 disabled:opacity-60"
+        >
+          {busy ? "Saving…" : "Reschedule"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// --- Cells ------------------------------------------------------------------
+
+function ProjectCell({ row }: { row: QualityRow }) {
+  if (!row.projectId) return <span className="text-[var(--muted)]">—</span>;
+  return (
+    <div className="leading-tight">
+      <span className="font-mono text-[11px] text-noble-navy">{row.projectId}</span>
+      {row.projectName ? (
+        <div className="text-[11px] text-noble-black/70">{row.projectName}</div>
+      ) : null}
     </div>
   );
 }
@@ -238,20 +448,41 @@ function SlipBadge({ row }: { row: QualityRow }) {
   );
 }
 
+// --- Board ------------------------------------------------------------------
+
 export function QualityBoard({
   active,
   completed,
+  projects,
   canEdit,
 }: {
   active: QualityRow[];
   completed: QualityRow[];
+  projects: ProjectOption[];
   canEdit: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null); // "add" | row id
   const [, startTransition] = useTransition();
+
+  const [activeSort, setActiveSort] = useState<SortState | null>(null);
+  const [completedSort, setCompletedSort] = useState<SortState | null>(null);
+
+  const sortedActive = useMemo(() => sortRows(active, activeSort), [active, activeSort]);
+  const sortedCompleted = useMemo(
+    () => sortRows(completed, completedSort),
+    [completed, completedSort]
+  );
+
+  function toggleSort(current: SortState | null, key: SortKey): SortState {
+    if (current?.key === key) {
+      return { key, dir: current.dir === "asc" ? "desc" : "asc" };
+    }
+    return { key, dir: "asc" };
+  }
 
   function run(key: string, fn: () => Promise<void>, onDone?: () => void) {
     setErr(null);
@@ -268,20 +499,21 @@ export function QualityBoard({
     });
   }
 
+  const activeColSpan = canEdit ? 8 : 7;
+
   return (
     <div className="space-y-6">
       {/* Active inspections — admin-populated. */}
       <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-white">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-          <h3 className="text-sm font-semibold text-noble-black">
-            Active inspections
-          </h3>
+          <h3 className="text-sm font-semibold text-noble-black">Active inspections</h3>
           {canEdit && !adding ? (
             <button
               type="button"
               onClick={() => {
                 setAdding(true);
                 setEditingId(null);
+                setReschedulingId(null);
                 setErr(null);
               }}
               className="rounded-md border border-[var(--border)] px-3 py-1 text-xs hover:bg-noble-stone/40"
@@ -292,39 +524,38 @@ export function QualityBoard({
         </div>
 
         {active.length === 0 && !adding ? (
-          <p className="px-3 py-4 text-sm text-[var(--muted)]">
-            No active inspections.
-          </p>
+          <p className="px-3 py-4 text-sm text-[var(--muted)]">No active inspections.</p>
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--border)]">
-                <th className={headCls}>Item</th>
-                <th className={headCls}>Category</th>
-                <th className={headCls}>Method</th>
-                <th className={headCls}>Target</th>
-                <th className={headCls}>Est. (d)</th>
-                <th className={headCls}>Slip</th>
+                <SortHeader label="Item" colKey="item" sort={activeSort} onSort={(k) => setActiveSort(toggleSort(activeSort, k))} />
+                <SortHeader label="Project" colKey="project" sort={activeSort} onSort={(k) => setActiveSort(toggleSort(activeSort, k))} />
+                <SortHeader label="Category" colKey="category" sort={activeSort} onSort={(k) => setActiveSort(toggleSort(activeSort, k))} />
+                <SortHeader label="Method" colKey="method" sort={activeSort} onSort={(k) => setActiveSort(toggleSort(activeSort, k))} />
+                <SortHeader label="Target" colKey="target" sort={activeSort} onSort={(k) => setActiveSort(toggleSort(activeSort, k))} />
+                <SortHeader label="Est. (d)" colKey="est" sort={activeSort} onSort={(k) => setActiveSort(toggleSort(activeSort, k))} />
+                <SortHeader label="Slip" colKey="slip" sort={activeSort} onSort={(k) => setActiveSort(toggleSort(activeSort, k))} />
                 {canEdit ? <th className={headCls}>Actions</th> : null}
               </tr>
             </thead>
             <tbody>
-              {active.map((row) =>
+              {sortedActive.map((row) =>
                 editingId === row.id ? (
                   <tr key={row.id} className="border-b border-[var(--border)]">
-                    <td className={cellCls} colSpan={canEdit ? 7 : 6}>
+                    <td className={cellCls} colSpan={activeColSpan}>
                       <InspectionForm
                         mode="edit"
+                        projects={projects}
                         hasBaseline={row.baselineIso !== null}
                         initial={{
                           item: row.item,
+                          projectId: row.projectId,
                           category: row.category ?? "",
                           method: row.method,
                           targetIso: row.targetIso ?? "",
                           estDurationDays:
-                            row.estDurationDays != null
-                              ? String(row.estDurationDays)
-                              : "",
+                            row.estDurationDays != null ? String(row.estDurationDays) : "",
                         }}
                         busy={busyId === row.id}
                         error={err}
@@ -342,13 +573,33 @@ export function QualityBoard({
                       />
                     </td>
                   </tr>
+                ) : reschedulingId === row.id ? (
+                  <tr key={row.id} className="border-b border-[var(--border)]">
+                    <td className={cellCls} colSpan={activeColSpan}>
+                      <RescheduleForm
+                        initialTarget={row.targetIso ?? ""}
+                        hasBaseline={row.baselineIso !== null}
+                        busy={busyId === row.id}
+                        error={err}
+                        onCancel={() => {
+                          setReschedulingId(null);
+                          setErr(null);
+                        }}
+                        onSubmit={(fd) =>
+                          run(
+                            row.id,
+                            () => rescheduleQualityInspectionAction(row.id, fd),
+                            () => setReschedulingId(null)
+                          )
+                        }
+                      />
+                    </td>
+                  </tr>
                 ) : (
-                  <tr
-                    key={row.id}
-                    className="border-b border-[var(--border)] last:border-0"
-                  >
-                    <td className={`${cellCls} font-medium text-noble-black`}>
-                      {row.item}
+                  <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
+                    <td className={`${cellCls} font-medium text-noble-black`}>{row.item}</td>
+                    <td className={cellCls}>
+                      <ProjectCell row={row} />
                     </td>
                     <td className={cellCls}>
                       <CategoryPill category={row.category} />
@@ -361,9 +612,7 @@ export function QualityBoard({
                         {row.targetIso ?? "—"}
                       </span>
                       {row.overdue ? (
-                        <span className="ml-1 text-[11px] text-noble-red">
-                          overdue
-                        </span>
+                        <span className="ml-1 text-[11px] text-noble-red">overdue</span>
                       ) : null}
                     </td>
                     <td className={cellCls}>{row.estDurationDays ?? "—"}</td>
@@ -376,9 +625,7 @@ export function QualityBoard({
                           <button
                             type="button"
                             onClick={() =>
-                              run(row.id, () =>
-                                completeQualityInspectionAction(row.id)
-                              )
+                              run(row.id, () => completeQualityInspectionAction(row.id))
                             }
                             disabled={busyId === row.id}
                             className="font-medium text-[#0F6E56] hover:underline disabled:opacity-60"
@@ -388,7 +635,20 @@ export function QualityBoard({
                           <button
                             type="button"
                             onClick={() => {
+                              setReschedulingId(row.id);
+                              setEditingId(null);
+                              setAdding(false);
+                              setErr(null);
+                            }}
+                            className="text-[#BA7517] hover:underline"
+                          >
+                            Reschedule
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
                               setEditingId(row.id);
+                              setReschedulingId(null);
                               setAdding(false);
                               setErr(null);
                             }}
@@ -399,12 +659,8 @@ export function QualityBoard({
                           <button
                             type="button"
                             onClick={() => {
-                              if (
-                                confirm(`Delete inspection "${row.item}"?`)
-                              )
-                                run(row.id, () =>
-                                  deleteQualityInspectionAction(row.id)
-                                );
+                              if (confirm(`Delete inspection "${row.item}"?`))
+                                run(row.id, () => deleteQualityInspectionAction(row.id));
                             }}
                             disabled={busyId === row.id}
                             className="text-noble-red hover:underline disabled:opacity-60"
@@ -419,12 +675,14 @@ export function QualityBoard({
               )}
               {adding ? (
                 <tr>
-                  <td className={cellCls} colSpan={canEdit ? 7 : 6}>
+                  <td className={cellCls} colSpan={activeColSpan}>
                     <InspectionForm
                       mode="add"
+                      projects={projects}
                       hasBaseline={false}
                       initial={{
                         item: "",
+                        projectId: null,
                         category: "",
                         method: "",
                         targetIso: "",
@@ -437,11 +695,7 @@ export function QualityBoard({
                         setErr(null);
                       }}
                       onSubmit={(fd) =>
-                        run(
-                          "add",
-                          () => createQualityInspectionAction(fd),
-                          () => setAdding(false)
-                        )
+                        run("add", () => createQualityInspectionAction(fd), () => setAdding(false))
                       }
                     />
                   </td>
@@ -455,36 +709,31 @@ export function QualityBoard({
       {/* Completed inspections — archive. */}
       <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-white">
         <div className="border-b border-[var(--border)] px-3 py-2">
-          <h3 className="text-sm font-semibold text-noble-black">
-            Completed inspections
-          </h3>
+          <h3 className="text-sm font-semibold text-noble-black">Completed inspections</h3>
         </div>
         {completed.length === 0 ? (
-          <p className="px-3 py-4 text-sm text-[var(--muted)]">
-            Nothing completed yet.
-          </p>
+          <p className="px-3 py-4 text-sm text-[var(--muted)]">Nothing completed yet.</p>
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--border)]">
-                <th className={headCls}>Item</th>
-                <th className={headCls}>Category</th>
-                <th className={headCls}>Method</th>
-                <th className={headCls}>Target</th>
-                <th className={headCls}>Completed</th>
-                <th className={headCls}>Result</th>
+                <SortHeader label="Item" colKey="item" sort={completedSort} onSort={(k) => setCompletedSort(toggleSort(completedSort, k))} />
+                <SortHeader label="Project" colKey="project" sort={completedSort} onSort={(k) => setCompletedSort(toggleSort(completedSort, k))} />
+                <SortHeader label="Category" colKey="category" sort={completedSort} onSort={(k) => setCompletedSort(toggleSort(completedSort, k))} />
+                <SortHeader label="Method" colKey="method" sort={completedSort} onSort={(k) => setCompletedSort(toggleSort(completedSort, k))} />
+                <SortHeader label="Target" colKey="target" sort={completedSort} onSort={(k) => setCompletedSort(toggleSort(completedSort, k))} />
+                <SortHeader label="Completed" colKey="completed" sort={completedSort} onSort={(k) => setCompletedSort(toggleSort(completedSort, k))} />
+                <SortHeader label="Result" colKey="result" sort={completedSort} onSort={(k) => setCompletedSort(toggleSort(completedSort, k))} />
                 <th className={headCls}>Why it slipped</th>
                 {canEdit ? <th className={headCls}>Actions</th> : null}
               </tr>
             </thead>
             <tbody>
-              {completed.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-[var(--border)] last:border-0"
-                >
-                  <td className={`${cellCls} font-medium text-noble-black`}>
-                    {row.item}
+              {sortedCompleted.map((row) => (
+                <tr key={row.id} className="border-b border-[var(--border)] last:border-0">
+                  <td className={`${cellCls} font-medium text-noble-black`}>{row.item}</td>
+                  <td className={cellCls}>
+                    <ProjectCell row={row} />
                   </td>
                   <td className={cellCls}>
                     <CategoryPill category={row.category} />
@@ -523,9 +772,7 @@ export function QualityBoard({
                         <button
                           type="button"
                           onClick={() =>
-                            run(row.id, () =>
-                              reopenQualityInspectionAction(row.id)
-                            )
+                            run(row.id, () => reopenQualityInspectionAction(row.id))
                           }
                           disabled={busyId === row.id}
                           className="text-noble-black/70 hover:underline disabled:opacity-60"
@@ -536,9 +783,7 @@ export function QualityBoard({
                           type="button"
                           onClick={() => {
                             if (confirm(`Delete inspection "${row.item}"?`))
-                              run(row.id, () =>
-                                deleteQualityInspectionAction(row.id)
-                              );
+                              run(row.id, () => deleteQualityInspectionAction(row.id));
                           }}
                           disabled={busyId === row.id}
                           className="text-noble-red hover:underline disabled:opacity-60"

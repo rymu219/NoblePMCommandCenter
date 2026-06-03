@@ -1,0 +1,31 @@
+name: CI
+
+# Lightweight checks on every PR to main (and on pushes to main):
+# typecheck + the SVI engine tests. Kept dependency-light — no database is
+# required (prisma generate runs offline via the postinstall hook).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Installs deps; postinstall runs `prisma generate` (no DB needed).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: SVI engine tests
+        run: npm run test:svi

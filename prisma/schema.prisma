@@ -97,6 +97,8 @@ model ProjectRow {
   keyMilestone      String?
   /// On-track | At Risk | Off Track — used by the dashboard's hero pill.
   dashboardHealth   String?
+  /// JSON map of manufacturing-development department contacts (role→name).
+  devContacts       String?
   /// JSON: which optional sections are enabled. Stored as TEXT on SQLite.
   templateToggles   String              @default("{}")
   lastUpdatedAt     DateTime            @updatedAt
@@ -117,6 +119,7 @@ model ProjectRow {
   milestones    Milestone[]
   sviSnapshots  SviSnapshot[]
   qualityInspections QualityInspection[]
+  devTasks      DevTask[]
 }
 
 /// Multi-month phase row that drives the Program Dashboard mini-Gantt.
@@ -478,6 +481,38 @@ model SviSnapshot {
 
   @@unique([projectId, weekStart])
   @@index([projectId, weekStart])
+}
+
+/// One task in the standardized Molded-Part Manufacturing Development process.
+/// Seeded per project from DEV_CHECKLIST_TEMPLATE (lib/dev-checklist.ts). Unlike
+/// Milestone (engineer/board-facing with replan history), this is the project-
+/// level process tracker owned by Engineering — phase-grouped, with completion
+/// and date tracking for portfolio/overdue rollups.
+model DevTask {
+  id             String     @id @default(cuid())
+  projectId      String
+  project        ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Phase 1–5 (see DEV_PHASES).
+  phase          Int
+  /// Stable template key (e.g. "dfm1_readiness"); unique within a project.
+  key            String
+  label          String
+  /// JSON array of assisting department codes (see DEV_DEPARTMENTS).
+  departments    String     @default("[]")
+  complete       Boolean    @default(false)
+  /// Planned duration in whole days. Optional.
+  durationDays   Int?
+  /// Target/committed date (UTC midnight). Overdue = !complete && target < today.
+  targetDate     DateTime?
+  /// Actual completion date (UTC midnight); stamped when marked complete.
+  completionDate DateTime?
+  notes          String?
+  position       Int        @default(0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([projectId, key])
+  @@index([projectId, position])
 }
 
 /// Frozen, timestamped snapshot of a published report.

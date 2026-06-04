@@ -27,5 +27,5 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: SVI engine tests
-        run: npm run test:svi
+      - name: Unit tests (SVI + checklist)
+        run: npm test

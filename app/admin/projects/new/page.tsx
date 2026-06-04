@@ -170,6 +170,19 @@ export default async function NewProjectPage({
           </div>
         </fieldset>
 
+        <label className="flex items-start gap-2 rounded-md border border-[var(--border)] p-3 hover:bg-[var(--surface)]/60">
+          <input type="checkbox" name="seedDevChecklist" value="1" className="mt-0.5" />
+          <span>
+            <span className="text-sm font-medium text-noble-black">
+              Seed manufacturing-development checklist
+            </span>
+            <span className="block text-xs text-[var(--muted)]">
+              Pre-populate the standard 5-phase / 27-task molded-part development
+              process. You can also apply it later from the project page.
+            </span>
+          </span>
+        </label>
+
         <div className="flex justify-end gap-2">
           <Link
             href="/admin"

@@ -18,6 +18,7 @@ import { buildGanttLegend } from "@/lib/types";
 import { loadProject } from "@/lib/project-loader";
 import { loadProjectMilestones } from "@/lib/board-loader";
 import { loadProjectQuality } from "@/lib/quality-loader";
+import { loadDevChecklist } from "@/lib/dev-checklist-loader";
 import { loadLatestStatus } from "@/lib/status-loader";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,7 @@ import { StatusEditor } from "./status-editor";
 import { OpenActionItems } from "./open-action-items";
 import { ProjectMilestones } from "./project-milestones";
 import { ProjectQuality } from "@/components/quality/project-quality";
+import { DevChecklistBlock } from "./dev-checklist";
 
 interface Toggles {
   summary_cards: boolean;
@@ -71,7 +73,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, latest, user, openItems, rowMeta, milestones, quality] = await Promise.all([
+  const [project, latest, user, openItems, rowMeta, milestones, quality, devChecklist] = await Promise.all([
     loadProject(id),
     loadLatestStatus(id),
     getCurrentUser(),
@@ -85,6 +87,7 @@ export default async function ProjectPage({
     }),
     loadProjectMilestones(id),
     loadProjectQuality(id),
+    loadDevChecklist(id),
   ]);
   if (!project) notFound();
 
@@ -165,6 +168,16 @@ export default async function ProjectPage({
             milestones={milestones}
             canEdit={canEdit}
             isAdmin={isAdmin}
+          />
+        </SectionShell>
+      ) : null}
+
+      {!devChecklist.empty || canEdit ? (
+        <SectionShell title="Manufacturing Development">
+          <DevChecklistBlock
+            projectId={project.projectNumber}
+            checklist={devChecklist}
+            canEdit={canEdit}
           />
         </SectionShell>
       ) : null}

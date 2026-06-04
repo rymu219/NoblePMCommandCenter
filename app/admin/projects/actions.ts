@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { DEV_CHECKLIST_TEMPLATE } from "@/lib/dev-checklist";
 
 const PROJECT_NUMBER_RE = /^[0-9]{3}-[0-9]{3}$/;
 
@@ -104,6 +105,20 @@ export async function createProjectAction(formData: FormData) {
       after: JSON.stringify({ projectId, name, prefix, status, templateToggles }),
     },
   });
+
+  // Optionally seed the standard manufacturing-development checklist.
+  if (formData.get("seedDevChecklist")) {
+    await prisma.devTask.createMany({
+      data: DEV_CHECKLIST_TEMPLATE.map((t, i) => ({
+        projectId: created.id,
+        phase: t.phase,
+        key: t.key,
+        label: t.label,
+        departments: JSON.stringify(t.departments),
+        position: i,
+      })),
+    });
+  }
 
   revalidatePath("/");
   revalidatePath("/projects");

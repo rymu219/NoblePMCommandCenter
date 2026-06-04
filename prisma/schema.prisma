@@ -120,6 +120,8 @@ model ProjectRow {
   sviSnapshots  SviSnapshot[]
   qualityInspections QualityInspection[]
   devTasks      DevTask[]
+  parts         Part[]
+  issues        Issue[]
 }
 
 /// Multi-month phase row that drives the Program Dashboard mini-Gantt.
@@ -513,6 +515,74 @@ model DevTask {
 
   @@unique([projectId, key])
   @@index([projectId, position])
+}
+
+/// A molded part within a project — the grouping unit for the Issue Tracker.
+model Part {
+  id            String     @id @default(cuid())
+  projectId     String
+  project       ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  drawingNumber String?
+  revision      String?
+  cavities      Int?
+  position      Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  issues        Issue[]
+
+  @@index([projectId, position])
+}
+
+/// One tracked issue. Content is usually imported (Claude output, pasted as
+/// JSON) then triaged in-app. partId null = cross-cutting (applies to all parts).
+model Issue {
+  id         String     @id @default(cuid())
+  projectId  String
+  project    ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  partId     String?
+  part       Part?      @relation(fields: [partId], references: [id], onDelete: SetNull)
+  /// Drawing callout / characteristic number, if any.
+  charLabel  String?
+  title      String
+  synopsis   String?
+  /// open | pending | awaiting_customer | resolved
+  status     String     @default("open")
+  /// Owner name or role (free text — imported from the transcript).
+  owner      String?
+  position   Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  challenges IssueChallenge[]
+  actions    IssueAction[]
+
+  @@index([projectId, position])
+  @@index([partId])
+}
+
+/// A named "why this is hard" block under an issue (from the report prompt).
+model IssueChallenge {
+  id       String @id @default(cuid())
+  issueId  String
+  issue    Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  title    String
+  body     String
+  position Int    @default(0)
+
+  @@index([issueId, position])
+}
+
+/// A specific, actionable next step under an issue, with an owner + done state.
+model IssueAction {
+  id       String  @id @default(cuid())
+  issueId  String
+  issue    Issue   @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  body     String
+  owner    String?
+  done     Boolean @default(false)
+  position Int     @default(0)
+
+  @@index([issueId, position])
 }
 
 /// Frozen, timestamped snapshot of a published report.

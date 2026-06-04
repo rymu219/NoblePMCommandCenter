@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { ProjectHeader } from "@/components/project-header";
 import { SectionShell } from "@/components/section-shell";
 import { SectionToggleBar } from "@/components/section-toggle-bar";
@@ -19,6 +20,8 @@ import { loadProject } from "@/lib/project-loader";
 import { loadProjectMilestones } from "@/lib/board-loader";
 import { loadProjectQuality } from "@/lib/quality-loader";
 import { loadDevChecklist } from "@/lib/dev-checklist-loader";
+import { loadIssueSummary } from "@/lib/issues-loader";
+import { ISSUE_STATUSES } from "@/lib/issues";
 import { loadLatestStatus } from "@/lib/status-loader";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -73,7 +76,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, latest, user, openItems, rowMeta, milestones, quality, devChecklist] = await Promise.all([
+  const [project, latest, user, openItems, rowMeta, milestones, quality, devChecklist, issueSummary] = await Promise.all([
     loadProject(id),
     loadLatestStatus(id),
     getCurrentUser(),
@@ -88,6 +91,7 @@ export default async function ProjectPage({
     loadProjectMilestones(id),
     loadProjectQuality(id),
     loadDevChecklist(id),
+    loadIssueSummary(id),
   ]);
   if (!project) notFound();
 
@@ -185,6 +189,32 @@ export default async function ProjectPage({
       {quality.active.length > 0 || quality.completed.length > 0 ? (
         <SectionShell title="Quality">
           <ProjectQuality active={quality.active} completed={quality.completed} />
+        </SectionShell>
+      ) : null}
+
+      {issueSummary.total > 0 || canEdit ? (
+        <SectionShell title="Issue Tracker">
+          <div className="rounded-lg border border-[var(--border)] bg-white p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-noble-black">
+                {issueSummary.total} issues
+              </span>
+              {ISSUE_STATUSES.map((s) => (
+                <span
+                  key={s.value}
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${s.badge}`}
+                >
+                  {issueSummary.byStatus[s.value] ?? 0} {s.label}
+                </span>
+              ))}
+              <Link
+                href={`/projects/${project.projectNumber}/issues`}
+                className="no-print ml-auto rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-noble-black hover:bg-noble-stone/40"
+              >
+                Open issue tracker →
+              </Link>
+            </div>
+          </div>
         </SectionShell>
       ) : null}
 

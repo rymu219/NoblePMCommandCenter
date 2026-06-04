@@ -17,7 +17,8 @@
     "backfill:replans": "tsx --env-file-if-exists=.env prisma/backfill-replans.ts",
     "test:svi": "tsx lib/svi.test.ts",
     "test:checklist": "tsx lib/dev-checklist.test.ts",
-    "test": "npm run test:svi && npm run test:checklist",
+    "test:issues": "tsx lib/issues-import.test.ts",
+    "test": "npm run test:svi && npm run test:checklist && npm run test:issues",
     "deploy:db": "prisma db push && npm run db:seed"
   },
   "dependencies": {

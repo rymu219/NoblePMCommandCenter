@@ -42,11 +42,19 @@ Nav shrinks to: Portfolio · Projects · My Work · Admin.
     `StatusUpdate.blocks`.
   - `prisma/migrate-v2.ts` — idempotent blob → row migration, `--dry-run`
     supported. Old models/UI keep working through the transition.
-- [ ] **Phase 2 — unified project detail page**
+- [x] **Phase 2 — unified project detail page**
   - One page per project: health, narrative, milestone timeline (renders
     Milestone + Phase), budget bar, risks, decisions, runs, notes.
   - Inline click-to-edit everywhere; no edit-mode modals. Writes go to the
     typed v2 rows only.
+  - Built: `lib/project-v2-loader.ts`, `app/projects/[id]/v2-actions.ts`,
+    `components/v2/*` (health pill, timeline SVG, narrative composer,
+    budget strip, risks/decisions/runs/notes inline editors, follow-up
+    adder). `app/projects/[id]/page.tsx` rewritten — section toggles,
+    SectionEdit modals and the 8 blob editors are no longer reachable
+    from the project page. Milestone editing reuses the board's editor
+    (slip-reason capture preserved); posting a status update dual-writes
+    `blocks` so the v1 daily report keeps rendering until phase 4.
 - [ ] **Phase 3 — derived persona views**
   - Portfolio (exec), Department (dept heads), My Work (engineers, merges
     my-week + board subtasks). All read-only projections; nav collapses.

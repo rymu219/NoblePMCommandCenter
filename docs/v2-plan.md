@@ -55,9 +55,17 @@ Nav shrinks to: Portfolio · Projects · My Work · Admin.
     from the project page. Milestone editing reuses the board's editor
     (slip-reason capture preserved); posting a status update dual-writes
     `blocks` so the v1 daily report keeps rendering until phase 4.
-- [ ] **Phase 3 — derived persona views**
+- [x] **Phase 3 — derived persona views**
   - Portfolio (exec), Department (dept heads), My Work (engineers, merges
     my-week + board subtasks). All read-only projections; nav collapses.
+  - Built: `/portfolio` (health chips, all-projects milestone timeline,
+    project cards grouped by program, needs-attention list),
+    `/department` (team hours, the dept's open follow-ups, projects the
+    team touches — admin can switch depts via ?dept=), `/my-work` (open
+    subtasks with checkbox-complete + the weekly time grid on one page).
+    Nav is now persona-based: Portfolio · Projects · My Work (engineers)
+    · Department (viewers) · Daily Report + Admin (admin). Old routes
+    stay reachable by URL until phase 4.
 - [ ] **Phase 4 — deletion**
   - Drop deprecated models/fields from the schema; delete old pages
     (daily report editors, section editors, execution/SVI, meetings),

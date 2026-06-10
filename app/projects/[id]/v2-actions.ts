@@ -48,6 +48,8 @@ function todayUtc(): Date {
 function revalidate(projectId: string) {
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
+  revalidatePath("/portfolio");
+  revalidatePath("/department");
   revalidatePath("/");
 }
 

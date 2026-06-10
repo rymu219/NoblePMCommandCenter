@@ -46,6 +46,8 @@ function revalidate(projectId?: string) {
   revalidatePath("/board");
   revalidatePath("/board/report");
   revalidatePath("/execution");
+  revalidatePath("/my-work");
+  revalidatePath("/portfolio");
   if (projectId) revalidatePath(`/projects/${projectId}`);
 }
 

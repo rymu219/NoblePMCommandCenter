@@ -33,16 +33,16 @@ model User {
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  ownedProjects ProjectRow[] @relation("OwnedProjects")
-  assignments   ProjectAssignment[]
-  timeEntries   TimeEntry[]
-  timeNotes     TimeNote[]
-  auditLog      AuditLog[]
-  sessions      Session[]
-  closesPerformed PeriodClose[] @relation("ClosedBy")
-  ownedSubtasks Subtask[]     @relation("OwnedSubtasks")
+  ownedProjects        ProjectRow[]          @relation("OwnedProjects")
+  assignments          ProjectAssignment[]
+  timeEntries          TimeEntry[]
+  timeNotes            TimeNote[]
+  auditLog             AuditLog[]
+  sessions             Session[]
+  closesPerformed      PeriodClose[]         @relation("ClosedBy")
+  ownedSubtasks        Subtask[]             @relation("OwnedSubtasks")
   milestoneEngagements MilestoneEngagement[] @relation("MilestoneEngagements")
-  milestoneReplans MilestoneReplan[] @relation("MilestoneReplans")
+  milestoneReplans     MilestoneReplan[]     @relation("MilestoneReplans")
 }
 
 /// NextAuth-style sessions stored in DB for credentials provider.
@@ -72,56 +72,120 @@ model Program {
 /// "Project" is a reserved-feel name; Prisma is happy either way. Using
 /// ProjectRow to keep the relation field naming clean (`project`).
 model ProjectRow {
-  id                String              @id // XXX-XXX
-  programPrefix     String
-  program           Program             @relation(fields: [programPrefix], references: [prefix])
-  name              String
-  subtitle          String?
+  id              String    @id // XXX-XXX
+  programPrefix   String
+  program         Program   @relation(fields: [programPrefix], references: [prefix])
+  name            String
+  subtitle        String?
   /// pipeline | not_started | active | on_hold | complete | archived
   /// `pipeline` = prospective work being scoped; not an official project yet,
   /// excluded from rollups/status feed, flagged in Admin for setup.
-  status            String              @default("active")
-  ownerId           String?
-  owner             User?               @relation("OwnedProjects", fields: [ownerId], references: [id])
-  startDate         DateTime?
-  targetEndDate     DateTime?
-  budgetTotal       Float?
-  spentTotal        Float?
-  committedTotal    Float?
-  forecastTotal     Float?
+  status          String    @default("active")
+  ownerId         String?
+  owner           User?     @relation("OwnedProjects", fields: [ownerId], references: [id])
+  startDate       DateTime?
+  targetEndDate   DateTime?
+  budgetTotal     Float?
+  spentTotal      Float?
+  committedTotal  Float?
+  forecastTotal   Float?
   /// Free-text caption for the dashboard "headroom" card subline.
-  headroomNote      String?
+  headroomNote    String?
   /// Free-text qualifier for the dashboard "next trigger" line.
-  nextTrigger       String?
+  nextTrigger     String?
   /// Free-text "key milestone" line on the dashboard footer strip.
-  keyMilestone      String?
-  /// On-track | At Risk | Off Track — used by the dashboard's hero pill.
-  dashboardHealth   String?
+  keyMilestone    String?
+  /// DEPRECATED (v2): superseded by `health`. on_schedule | at_risk |
+  /// off_track — used by the old dashboard's hero pill. Dropped in v2 phase 4.
+  dashboardHealth String?
+  /// v2 canonical project health: on_track | at_risk | off_track. The single
+  /// source of truth for every health pill/color in the v2 UI (replaces
+  /// dashboardHealth + per-status-update labels as the project-level signal).
+  /// null = not yet migrated; readers treat null as on_track.
+  health          String?
+  /// v2 free-form project notes (markdown-lite: **bold**, blank-line
+  /// paragraphs). Replaces the notes_freeform section blob.
+  notes           String?
   /// JSON map of manufacturing-development department contacts (role→name).
-  devContacts       String?
+  devContacts     String?
   /// JSON: which optional sections are enabled. Stored as TEXT on SQLite.
-  templateToggles   String              @default("{}")
-  lastUpdatedAt     DateTime            @updatedAt
-  lastUpdatedById   String?
-  createdAt         DateTime            @default(now())
+  templateToggles String    @default("{}")
+  lastUpdatedAt   DateTime  @updatedAt
+  lastUpdatedById String?
+  createdAt       DateTime  @default(now())
 
-  sections      ProjectSection[]
-  assignments   ProjectAssignment[]
-  timeEntries   TimeEntry[]
-  timeNotes     TimeNote[]
-  ganttTasks    GanttTask[]
-  meetings      Meeting[]
-  attachments   Attachment[]
-  statusUpdates StatusUpdate[]
-  actionItems   ActionItem[]
-  phases        Phase[]
-  budgetTracks  BudgetTrack[]
-  milestones    Milestone[]
-  sviSnapshots  SviSnapshot[]
+  sections           ProjectSection[]
+  assignments        ProjectAssignment[]
+  timeEntries        TimeEntry[]
+  timeNotes          TimeNote[]
+  ganttTasks         GanttTask[]
+  meetings           Meeting[]
+  attachments        Attachment[]
+  statusUpdates      StatusUpdate[]
+  actionItems        ActionItem[]
+  phases             Phase[]
+  budgetTracks       BudgetTrack[]
+  milestones         Milestone[]
+  sviSnapshots       SviSnapshot[]
   qualityInspections QualityInspection[]
-  devTasks      DevTask[]
-  parts         Part[]
-  issues        Issue[]
+  devTasks           DevTask[]
+  parts              Part[]
+  issues             Issue[]
+  risks              Risk[]
+  decisions          Decision[]
+  productionRuns     ProductionRun[]
+}
+
+/// v2 — one tracked risk/precondition per row. Replaces the
+/// risks_preconditions ProjectSection JSON blob with typed, individually
+/// editable rows.
+model Risk {
+  id        String     @id @default(cuid())
+  projectId String
+  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  body      String
+  /// Free-text owner name(s) — matches existing data ("Ryan Murphy / Purchasing").
+  owner     String?
+  /// open | resolved
+  status    String     @default("open")
+  position  Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([projectId, status, position])
+}
+
+/// v2 — one logged decision per row. Replaces the decisions_log blob.
+model Decision {
+  id        String     @id @default(cuid())
+  projectId String
+  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// When the decision was made (UTC midnight). null if the source date
+  /// couldn't be parsed (the original date text is then prefixed to `body`).
+  decidedOn DateTime?
+  body      String
+  /// meeting | unilateral
+  source    String     @default("unilateral")
+  author    String?
+  position  Int        @default(0)
+  createdAt DateTime   @default(now())
+
+  @@index([projectId, position])
+}
+
+/// v2 — one production/material run per row. Replaces the parts_material blob.
+model ProductionRun {
+  id        String     @id @default(cuid())
+  projectId String
+  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  purpose   String?
+  parts     Int        @default(0)
+  lbs       Float      @default(0)
+  kg        Float      @default(0)
+  position  Int        @default(0)
+
+  @@index([projectId, position])
 }
 
 /// Multi-month phase row that drives the Program Dashboard mini-Gantt.
@@ -157,15 +221,20 @@ model BudgetTrack {
 }
 
 model ProjectAssignment {
-  projectId  String
-  userId     String
-  project    ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime   @default(now())
+  projectId String
+  userId    String
+  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
 
   @@id([projectId, userId])
 }
 
+/// DEPRECATED (v2): replaced by typed rows — Risk, Decision, ProductionRun,
+/// ProjectRow.notes — via prisma/migrate-v2.ts. summary_cards and
+/// hours_by_role become derived views (budget fields + TimeEntry); the gantt
+/// blobs are replaced by Milestone.phase + Phase rendering. Kept read-only
+/// through the transition; dropped in v2 phase 4.
 /// One row per section instance on a project. `data` is JSON-as-TEXT.
 model ProjectSection {
   id          String     @id @default(cuid())
@@ -185,29 +254,32 @@ model ProjectSection {
   @@index([projectId, position])
 }
 
+/// DEPRECATED (v2): never wired to any UI or loader (zero code references).
+/// Schedule rendering in v2 uses Milestone (+phase/dept) and Phase. Dropped
+/// in v2 phase 4.
 model GanttTask {
-  id          String     @id @default(cuid())
-  projectId   String
-  project     ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
+  id        String     @id @default(cuid())
+  projectId String
+  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
   /// engineering | process | automation | quality
-  role        String
-  start       DateTime
-  end         DateTime
+  role      String
+  start     DateTime
+  end       DateTime
   /// JSON array of GanttTask ids.
-  dependsOn   String     @default("[]")
-  isGate      Boolean    @default(false)
-  status      String     @default("not_started")
+  dependsOn String     @default("[]")
+  isGate    Boolean    @default(false)
+  status    String     @default("not_started")
 }
 
 model TimeEntry {
-  id         String     @id @default(cuid())
-  userId     String
-  projectId  String
-  entryDate  DateTime
-  hours      Float
-  source     String     @default("daily-grid")
-  createdAt  DateTime   @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  entryDate DateTime
+  hours     Float
+  source    String   @default("daily-grid")
+  createdAt DateTime @default(now())
 
   user    User       @relation(fields: [userId], references: [id])
   project ProjectRow @relation(fields: [projectId], references: [id])
@@ -217,11 +289,11 @@ model TimeEntry {
 }
 
 model TimeNote {
-  id              String     @id @default(cuid())
-  userId          String
-  projectId       String
-  weekStartDate   DateTime
-  note            String
+  id            String   @id @default(cuid())
+  userId        String
+  projectId     String
+  weekStartDate DateTime
+  note          String
 
   user    User       @relation(fields: [userId], references: [id])
   project ProjectRow @relation(fields: [projectId], references: [id])
@@ -232,7 +304,7 @@ model TimeNote {
 model PeriodClose {
   id         String   @id @default(cuid())
   year       Int
-  month      Int      // 1-12
+  month      Int // 1-12
   closedAt   DateTime @default(now())
   closedById String
   closedBy   User     @relation("ClosedBy", fields: [closedById], references: [id])
@@ -240,33 +312,36 @@ model PeriodClose {
   @@unique([year, month])
 }
 
+/// DEPRECATED (v2): meetings/transcript-proposal machinery is out of scope
+/// for the simplified rebuild. Dropped in v2 phase 4.
 model Meeting {
-  id                          String       @id @default(cuid())
-  projectId                   String
-  project                     ProjectRow   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                         String     @id @default(cuid())
+  projectId                  String
+  project                    ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
   /// agenda | transcript
-  kind                        String
-  occurredAt                  DateTime     @default(now())
-  bodyText                    String
-  agendaGeneratedFromStateAt  DateTime?
-  createdById                 String?
+  kind                       String
+  occurredAt                 DateTime   @default(now())
+  bodyText                   String
+  agendaGeneratedFromStateAt DateTime?
+  createdById                String?
 
   proposals TranscriptProposal[]
 }
 
+/// DEPRECATED (v2): see Meeting. Dropped in v2 phase 4.
 model TranscriptProposal {
-  id              String   @id @default(cuid())
-  meetingId       String
-  meeting         Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  meetingId      String
+  meeting        Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   /// matches ProjectSection.kind
-  sectionKind     String
-  targetId        String?  // optional row id when applicable
+  sectionKind    String
+  targetId       String? // optional row id when applicable
   /// JSON-encoded proposed change.
-  proposedChange  String
+  proposedChange String
   /// pending | accepted | rejected
-  status          String   @default("pending")
-  decidedById     String?
-  decidedAt       DateTime?
+  status         String    @default("pending")
+  decidedById    String?
+  decidedAt      DateTime?
 }
 
 model Attachment {
@@ -282,16 +357,16 @@ model Attachment {
 }
 
 model AuditLog {
-  id           String   @id @default(cuid())
-  actorUserId  String
-  actor        User     @relation(fields: [actorUserId], references: [id])
-  entityType   String
-  entityId     String
-  action       String
+  id          String   @id @default(cuid())
+  actorUserId String
+  actor       User     @relation(fields: [actorUserId], references: [id])
+  entityType  String
+  entityId    String
+  action      String
   /// JSON-encoded before/after blobs.
-  before       String?
-  after        String?
-  at           DateTime @default(now())
+  before      String?
+  after       String?
+  at          DateTime @default(now())
 
   @@index([entityType, entityId])
 }
@@ -299,19 +374,23 @@ model AuditLog {
 /// One narrative status update per project per reporting day.
 /// The latest update per project is what the Daily Tooling Report renders.
 model StatusUpdate {
-  id               String     @id @default(cuid())
-  projectId        String
-  project          ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  reportDate       DateTime   // the day this status describes
+  id              String     @id @default(cuid())
+  projectId       String
+  project         ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportDate      DateTime // the day this status describes
   /// on_track | in_progress | at_risk | blocked | pending | complete
-  statusLabel      String
+  statusLabel     String
   /// Free text — "Structured Delay", "External Pressure + Info Gap",
   /// "Watch Capacity", "No payment", etc.
-  statusQualifier  String?
-  /// JSON-encoded array of `{heading: string, body: string}`.
-  blocks           String     @default("[]")
-  authorId         String?
-  createdAt        DateTime   @default(now())
+  statusQualifier String?
+  /// DEPRECATED (v2): superseded by `narrative`. JSON-encoded array of
+  /// `{heading: string, body: string}`. Dropped in v2 phase 4.
+  blocks          String     @default("[]")
+  /// v2 — markdown-lite narrative (same rules as ProjectRow.notes). One text
+  /// field instead of structured blocks; replaces `blocks`.
+  narrative       String?
+  authorId        String?
+  createdAt       DateTime   @default(now())
 
   actionItems ActionItem[]
 
@@ -321,23 +400,23 @@ model StatusUpdate {
 /// Concrete action items grouped by owner department; populate the
 /// Follow-up List in the Daily Tooling Report.
 model ActionItem {
-  id              String        @id @default(cuid())
-  projectId       String
-  project         ProjectRow    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  statusUpdateId  String?
-  statusUpdate    StatusUpdate? @relation(fields: [statusUpdateId], references: [id], onDelete: SetNull)
+  id             String        @id @default(cuid())
+  projectId      String
+  project        ProjectRow    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  statusUpdateId String?
+  statusUpdate   StatusUpdate? @relation(fields: [statusUpdateId], references: [id], onDelete: SetNull)
   /// engineering | quality | process | automation | program_pm | operations |
   /// sales | purchasing | scheduling
-  ownerDept       String
-  ownerUserId     String?
-  body            String
-  dueDate         DateTime?
-  completedAt     DateTime?
+  ownerDept      String
+  ownerUserId    String?
+  body           String
+  dueDate        DateTime?
+  completedAt    DateTime?
   /// Decision impact tier for SVI Decision-Speed weighting: low | medium | high.
-  impact          String        @default("medium")
+  impact         String        @default("medium")
   /// Whether this action is blocking progress (weighs heavier when overdue).
-  blocking        Boolean       @default(false)
-  createdAt       DateTime      @default(now())
+  blocking       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
 
   @@index([projectId, completedAt])
   @@index([ownerDept, completedAt])
@@ -346,14 +425,14 @@ model ActionItem {
 /// Portfolio-level narrative for a specific reporting day.
 /// Priority Callout / Key Risks Summary / Forward-Looking Notes.
 model PortfolioNote {
-  id          String   @id @default(cuid())
-  reportDate  DateTime
+  id         String   @id @default(cuid())
+  reportDate DateTime
   /// priority_callout | key_risks | forward_looking
-  kind        String
-  body        String
-  authorId    String?
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  kind       String
+  body       String
+  authorId   String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
 
   @@unique([reportDate, kind])
 }
@@ -381,13 +460,20 @@ model Milestone {
   actualDate   DateTime?
   /// Display order within the project (admin-controlled).
   position     Int        @default(0)
+  /// v2 — optional phase/group label ("Tooling", "Qualification", …). Groups
+  /// milestones into rows on the v2 project timeline; replaces the hand-drawn
+  /// gantt_overview blob bars as the schedule visual's data source.
+  phase        String?
+  /// v2 — owning department for color coding: engineering | process |
+  /// automation | quality. null = unassigned (renders neutral).
+  dept         String?
   createdById  String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  subtasks     Subtask[]
-  engagements  MilestoneEngagement[]
-  replans      MilestoneReplan[]
+  subtasks    Subtask[]
+  engagements MilestoneEngagement[]
+  replans     MilestoneReplan[]
 
   @@index([projectId, position])
 }
@@ -463,6 +549,8 @@ model MilestoneEngagement {
   @@index([userId])
 }
 
+/// DEPRECATED (v2): the SVI system is retired in the simplified rebuild —
+/// nothing downstream consumes it. Dropped in v2 phase 4.
 /// Weekly snapshot of a project's Systemic Vitality Index, written by an admin
 /// "Capture snapshot" action. Powers the trailing-trend arrow ("down N weeks")
 /// on the executive card. Idempotent per (project, ISO-week) via the unique key.
@@ -537,22 +625,22 @@ model Part {
 /// One tracked issue. Content is usually imported (Claude output, pasted as
 /// JSON) then triaged in-app. partId null = cross-cutting (applies to all parts).
 model Issue {
-  id         String     @id @default(cuid())
+  id         String           @id @default(cuid())
   projectId  String
-  project    ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    ProjectRow       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   partId     String?
-  part       Part?      @relation(fields: [partId], references: [id], onDelete: SetNull)
+  part       Part?            @relation(fields: [partId], references: [id], onDelete: SetNull)
   /// Drawing callout / characteristic number, if any.
   charLabel  String?
   title      String
   synopsis   String?
   /// open | pending | awaiting_customer | resolved
-  status     String     @default("open")
+  status     String           @default("open")
   /// Owner name or role (free text — imported from the transcript).
   owner      String?
-  position   Int        @default(0)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  position   Int              @default(0)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
   challenges IssueChallenge[]
   actions    IssueAction[]
 
@@ -587,16 +675,16 @@ model IssueAction {
 
 /// Frozen, timestamped snapshot of a published report.
 model Report {
-  id             String   @id @default(cuid())
+  id            String   @id @default(cuid())
   /// daily_tooling | executive_status
-  kind           String
-  reportDate     DateTime
+  kind          String
+  reportDate    DateTime
   /// null for daily (portfolio-wide); set for per-program reports.
-  programPrefix  String?
+  programPrefix String?
   /// JSON-encoded snapshot of everything needed to re-render the report.
-  snapshot       String
-  publishedAt    DateTime @default(now())
-  authorId       String?
+  snapshot      String
+  publishedAt   DateTime @default(now())
+  authorId      String?
 
   @@index([kind, reportDate])
 }
@@ -609,7 +697,7 @@ model Report {
 /// can be measured; the most recent slip's standard reason + note are kept on
 /// the row and carried into the completed archive (the "when & why it slipped").
 model QualityInspection {
-  id              String    @id @default(cuid())
+  id              String      @id @default(cuid())
   item            String
   /// Optional link to the project this inspection is for. SetNull on delete so
   /// the inspection survives if the project is removed. null = unassigned.
@@ -636,10 +724,10 @@ model QualityInspection {
   slipNote        String?
   /// When the most recent target move was recorded.
   slippedAt       DateTime?
-  position        Int       @default(0)
+  position        Int         @default(0)
   createdById     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@index([completedAt, position])
   @@index([projectId])

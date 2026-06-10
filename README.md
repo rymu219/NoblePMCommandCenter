@@ -14,6 +14,13 @@ migrated.
 See `/root/.claude/plans/i-need-to-make-dynamic-mango.md` for the full
 plan, phases, and the deferred-from-v1 list.
 
+**v2 rebuild in progress** — simpler, more visual, one screen per persona.
+Roadmap, data-model principles and the migration runbook live in
+[`docs/v2-plan.md`](docs/v2-plan.md). Phase 1 (typed v2 schema +
+`npm run db:migrate-v2`) and phase 2 (the unified, inline-editable
+project page) are done; the JSON section blobs and the extra nav
+surface get deleted in phase 4.
+
 ## Running locally
 
 ```bash

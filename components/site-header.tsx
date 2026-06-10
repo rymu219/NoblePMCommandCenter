@@ -5,14 +5,19 @@ import { MainNav } from "@/components/main-nav";
 import { MoonPhaseTracker } from "@/components/moon-phase";
 import { getCurrentUser, signOut } from "@/lib/auth";
 
+/*
+ * v2 nav — one destination per persona (docs/v2-plan.md): Portfolio for
+ * the high-level view, Projects to drill in, My Work for engineers,
+ * Department for dept heads, Admin + the daily report for the PM. Old
+ * routes (/board, /reports, /programs, /execution, /my-week) stay
+ * reachable by URL until phase 4 removes them.
+ */
 const NAV: Array<{ href: string; label: string; roles?: string[] }> = [
-  { href: "/", label: "Daily Report" },
-  { href: "/reports", label: "Archive" },
-  { href: "/programs", label: "Programs" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/projects", label: "Projects" },
-  { href: "/board", label: "Board" },
-  { href: "/execution", label: "Execution", roles: ["admin"] },
-  { href: "/my-week", label: "My Week", roles: ["engineer", "admin"] },
+  { href: "/my-work", label: "My Work", roles: ["engineer", "admin"] },
+  { href: "/department", label: "Department", roles: ["viewer", "admin"] },
+  { href: "/", label: "Daily Report", roles: ["admin"] },
   { href: "/admin", label: "Admin", roles: ["admin"] },
 ];
 

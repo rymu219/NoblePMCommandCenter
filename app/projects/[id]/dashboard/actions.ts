@@ -137,8 +137,10 @@ export async function saveDashboardMetaAction(
   const headroomNote = String(formData.get("headroomNote") ?? "").trim() || null;
   const nextTrigger = String(formData.get("nextTrigger") ?? "").trim() || null;
   const keyMilestone = String(formData.get("keyMilestone") ?? "").trim() || null;
-  const dashboardHealth =
-    String(formData.get("dashboardHealth") ?? "").trim() || null;
+  const healthRaw = String(formData.get("health") ?? "").trim();
+  const health = ["on_track", "at_risk", "off_track"].includes(healthRaw)
+    ? healthRaw
+    : null;
 
   await prisma.$transaction(async (tx) => {
     const before = await tx.projectRow.findUnique({ where: { id: projectId } });
@@ -151,7 +153,7 @@ export async function saveDashboardMetaAction(
         headroomNote,
         nextTrigger,
         keyMilestone,
-        dashboardHealth,
+        ...(health ? { health } : {}),
         lastUpdatedById: user.id,
       },
     });
@@ -168,7 +170,7 @@ export async function saveDashboardMetaAction(
           headroomNote: before?.headroomNote,
           nextTrigger: before?.nextTrigger,
           keyMilestone: before?.keyMilestone,
-          dashboardHealth: before?.dashboardHealth,
+          health: before?.health,
         }),
         after: JSON.stringify({
           budgetTotal,
@@ -177,7 +179,7 @@ export async function saveDashboardMetaAction(
           headroomNote,
           nextTrigger,
           keyMilestone,
-          dashboardHealth,
+          health,
         }),
       },
     });

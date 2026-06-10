@@ -55,24 +55,54 @@ Nav shrinks to: Portfolio · Projects · My Work · Admin.
     from the project page. Milestone editing reuses the board's editor
     (slip-reason capture preserved); posting a status update dual-writes
     `blocks` so the v1 daily report keeps rendering until phase 4.
-- [ ] **Phase 3 — derived persona views**
+- [x] **Phase 3 — derived persona views**
   - Portfolio (exec), Department (dept heads), My Work (engineers, merges
     my-week + board subtasks). All read-only projections; nav collapses.
-- [ ] **Phase 4 — deletion**
-  - Drop deprecated models/fields from the schema; delete old pages
-    (daily report editors, section editors, execution/SVI, meetings),
-    loaders and actions they used. Re-point reports/archive at v2 data or
-    retire it.
+  - Built: `/portfolio` (health chips, all-projects milestone timeline,
+    project cards grouped by program, needs-attention list),
+    `/department` (team hours, the dept's open follow-ups, projects the
+    team touches — admin can switch depts via ?dept=), `/my-work` (open
+    subtasks with checkbox-complete + the weekly time grid on one page).
+    Nav is now persona-based: Portfolio · Projects · My Work (engineers)
+    · Department (viewers) · Daily Report + Admin (admin). Old routes
+    stay reachable by URL until phase 4.
+- [x] **Phase 4 — deletion**
+  - Schema: dropped `ProjectSection`, `GanttTask`, `Meeting`,
+    `TranscriptProposal`, `SviSnapshot`; dropped `ProjectRow.dashboardHealth`
+    + `templateToggles`, `StatusUpdate.blocks`, `ActionItem.impact` +
+    `blocking`. 29 models remain, no JSON section blobs.
+  - Deleted: section editors/renderers + toggles, the old status editor +
+    draft builder, `/execution` + the whole SVI system, `/meetings`, the
+    one-off backfill/migration scripts. `/my-week` now redirects to
+    `/my-work` (grid + actions moved there).
+  - Ported to typed rows / `narrative` / `health`: daily report,
+    report snapshots (old block-based snapshots still render), program
+    rollup + executive status, project dashboard meta editor.
+  - Kept: `/board` (+ quality awareness + slippage report), `/reports`
+    archive + publish, `/programs` + executive status, project dashboard
+    (phases/budget-tracks editors), dev checklist, issue tracker.
 
-## Migration runbook (production)
+## Production upgrade runbook (v1 → v2)
+
+The data migration must run BEFORE the final schema drops the legacy
+tables, so production upgrades in two steps:
 
 ```bash
-npm run db:push                    # apply v2 schema (additive — safe)
-npm run db:migrate-v2 -- --dry-run # preview what will be copied
-npm run db:migrate-v2              # copy blob data into v2 rows
+# Step 1 — from the transition commit (additive schema + data migration)
+git checkout 334c63327898517a5e8dd024ed26b07367539dac   # v2-transition
+npm ci
+npm run db:push                    # additive — safe
+npm run db:migrate-v2 -- --dry-run # preview
+npm run db:migrate-v2              # copy blob data into typed rows
+
+# Step 2 — from main (final schema; drops the legacy tables/columns)
+git checkout main
+npm ci
+npx prisma db push                 # will warn about data loss on the
+                                   # legacy tables — that's expected;
+                                   # re-run with --accept-data-loss
 ```
 
-Caveat during the transition: the old section editors still write to the
-JSON blobs, not the v2 rows. After running the migration, treat the old
-risks/decisions/parts/notes editors as read-only (re-running the migration
-will NOT re-copy projects that already have v2 rows).
+Don't deploy main's app code until step 1 has run: the final schema's
+`db push --accept-data-loss` deletes the legacy blob tables, and the
+migration is the only thing that copies their contents out first.

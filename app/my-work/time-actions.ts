@@ -44,7 +44,7 @@ export async function saveCellAction(formData: FormData) {
     });
   }
 
-  revalidatePath("/my-week");
+  revalidatePath("/my-work");
 }
 
 export async function saveNoteAction(formData: FormData) {
@@ -81,5 +81,5 @@ export async function saveNoteAction(formData: FormData) {
     });
   }
 
-  revalidatePath("/my-week");
+  revalidatePath("/my-work");
 }

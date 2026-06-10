@@ -14,12 +14,12 @@ migrated.
 See `/root/.claude/plans/i-need-to-make-dynamic-mango.md` for the full
 plan, phases, and the deferred-from-v1 list.
 
-**v2 rebuild in progress** — simpler, more visual, one screen per persona.
-Roadmap, data-model principles and the migration runbook live in
-[`docs/v2-plan.md`](docs/v2-plan.md). Phase 1 (typed v2 schema +
-`npm run db:migrate-v2`) and phase 2 (the unified, inline-editable
-project page) are done; the JSON section blobs and the extra nav
-surface get deleted in phase 4.
+**v2 — current.** Simpler, more visual, one screen per persona: Portfolio
+(executives), Department (dept heads), My Work (engineers), and an
+inline-editable project page (PM). All rollup views are derived — nothing
+hand-maintained. Roadmap and the **production upgrade runbook (required
+before deploying over a v1 database)** live in
+[`docs/v2-plan.md`](docs/v2-plan.md).
 
 ## Running locally
 

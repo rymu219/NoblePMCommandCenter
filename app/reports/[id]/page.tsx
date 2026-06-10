@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { StatusPill } from "@/components/status-pill";
 import { StatusBlocks } from "@/components/status-blocks";
+import { MarkdownLite } from "@/components/v2/markdown";
 import { deptDisplay, parseBlocks } from "@/lib/status";
 
 /*
@@ -23,7 +24,10 @@ interface SnapshotShape {
         label: string;
         qualifier: string | null;
         reportDate: string;
-        blocks: unknown; // could be array or string
+        /** Pre-v2 snapshots: array or JSON string of {heading, body}. */
+        blocks?: unknown;
+        /** v2 snapshots: markdown-lite narrative. */
+        narrative?: string | null;
       } | null;
     }>;
   }>;
@@ -134,7 +138,11 @@ export default async function ReportSnapshotPage({
                       />
                     </header>
                     <div className="mt-3">
-                      <StatusBlocks blocks={coerceBlocks(p.status!.blocks)} />
+                      {p.status!.narrative ? (
+                        <MarkdownLite text={p.status!.narrative} />
+                      ) : (
+                        <StatusBlocks blocks={coerceBlocks(p.status!.blocks)} />
+                      )}
                     </div>
                     <div className="mt-3 text-[10px] text-[var(--muted)]">
                       Reported {p.status!.reportDate.slice(0, 10)}

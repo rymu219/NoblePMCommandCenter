@@ -2,7 +2,7 @@
  * Cause vocabulary for milestone date slips / re-baselines.
  *
  * Shared by the admin reason picker (app/board/milestone-editor.tsx) and the
- * Execution analytics (lib/execution-loader.ts) so labels never drift. These are
+ * slippage report so labels never drift. These are
  * the categories an admin chooses from when moving a committed date; the data is
  * private and only ever shown on the admin-only Execution page.
  */

@@ -87,26 +87,6 @@ function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
 }
 
-/** Fallback narrative for pre-v2 updates: join the JSON blocks as markdown. */
-function narrativeFromBlocks(blocksJson: string): string | null {
-  try {
-    const blocks = JSON.parse(blocksJson) as Array<{ heading?: string; body?: string }>;
-    if (!Array.isArray(blocks)) return null;
-    const parts = blocks
-      .map((b) => {
-        const heading = b.heading?.trim();
-        const body = b.body?.trim() ?? "";
-        if (heading && body) return `**${heading}**\n\n${body}`;
-        if (heading) return `**${heading}**`;
-        return body;
-      })
-      .filter(Boolean);
-    return parts.length ? parts.join("\n\n") : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function loadProjectV2(id: string): Promise<ProjectV2 | null> {
   const row = await prisma.projectRow.findUnique({
     where: { id },
@@ -208,7 +188,7 @@ export async function loadProjectV2(id: string): Promise<ProjectV2 | null> {
           reportDateIso: latest.reportDate.toISOString().slice(0, 10),
           statusLabel: latest.statusLabel,
           qualifier: latest.statusQualifier,
-          narrative: latest.narrative ?? narrativeFromBlocks(latest.blocks),
+          narrative: latest.narrative,
           authorName: latestAuthor?.name ?? null,
         }
       : null,

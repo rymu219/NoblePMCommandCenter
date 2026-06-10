@@ -1,12 +1,11 @@
 import { prisma } from "./prisma";
-import { parseBlocks, type StatusBlock } from "./status";
 
 export interface LatestStatus {
   id: string;
   reportDate: Date;
   label: string;
   qualifier: string | null;
-  blocks: StatusBlock[];
+  narrative: string | null;
   authorName: string | null;
   createdAt: Date;
 }
@@ -27,7 +26,7 @@ export async function loadLatestStatus(projectId: string): Promise<LatestStatus 
     reportDate: row.reportDate,
     label: row.statusLabel,
     qualifier: row.statusQualifier,
-    blocks: parseBlocks(row.blocks),
+    narrative: row.narrative,
     authorName,
     createdAt: row.createdAt,
   };
@@ -73,7 +72,7 @@ export async function loadPortfolio(): Promise<ProgramGroup[]> {
             reportDate: latest.reportDate,
             label: latest.statusLabel,
             qualifier: latest.statusQualifier,
-            blocks: parseBlocks(latest.blocks),
+            narrative: latest.narrative,
             authorName: null,
             createdAt: latest.createdAt,
           }

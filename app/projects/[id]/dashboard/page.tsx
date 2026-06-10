@@ -15,8 +15,6 @@ import {
 import { PhasesEditor } from "@/components/dashboard/phases-editor";
 import { BudgetTracksEditor } from "@/components/dashboard/budget-tracks-editor";
 import { MetaEditor } from "@/components/dashboard/meta-editor";
-import { SviCard } from "@/components/svi/svi-card";
-import { loadProjectSVI } from "@/lib/svi-loader";
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null) return "—";
@@ -75,12 +73,8 @@ export default async function DashboardPage({
   const isOwner = user ? project.ownerId === user.id : false;
   const canEdit = isAdmin || isOwner;
 
-  // Execution-system health is leadership/owner context only.
-  const svi = canEdit ? await loadProjectSVI(id) : null;
-
   const health =
-    (project.dashboardHealth as "on_schedule" | "at_risk" | "off_track" | null) ??
-    "on_schedule";
+    (project.health as "on_track" | "at_risk" | "off_track" | null) ?? "on_track";
 
   const budgetTotal = project.budgetTotal ?? 0;
   const committedTotal = project.committedTotal ?? 0;
@@ -160,13 +154,6 @@ export default async function DashboardPage({
           />
         </div>
 
-        {svi ? (
-          <>
-            <DashSectionLabel>EXECUTION HEALTH</DashSectionLabel>
-            <SviCard svi={svi} />
-          </>
-        ) : null}
-
         <DashSectionLabel>PROGRAM TIMELINE</DashSectionLabel>
         <ProgramTimeline phases={phaseRows} today={todayUtc} />
         {canEdit ? (
@@ -203,7 +190,7 @@ export default async function DashboardPage({
                 headroomNote: project.headroomNote,
                 nextTrigger: project.nextTrigger,
                 keyMilestone: project.keyMilestone,
-                dashboardHealth: project.dashboardHealth,
+                health: project.health,
               }}
             />
           </div>

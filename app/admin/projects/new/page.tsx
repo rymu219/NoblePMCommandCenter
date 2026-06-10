@@ -5,16 +5,6 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createProjectAction } from "../actions";
 
-const SECTIONS: Array<{ value: string; label: string; help: string }> = [
-  { value: "summary_cards", label: "Summary cards", help: "Top-of-page key metric cards." },
-  { value: "parts_material", label: "Parts & material by run", help: "For Part Requal / production runs." },
-  { value: "hours_by_role", label: "Hours by role", help: "Estimated + actuals by Engineering / Process / Automation / Quality." },
-  { value: "gantt_overview", label: "Gantt — week scale", help: "The week-scale overview Gantt." },
-  { value: "gantt_detail", label: "Gantt — hour scale", help: "Tightly sequenced cure/measure cycles." },
-  { value: "risks_preconditions", label: "Risks & pre-conditions", help: "Owner + resolved/unresolved." },
-  { value: "decisions_log", label: "Decisions log", help: "Date · decision · source · author." },
-  { value: "notes_freeform", label: "Notes (free-form)", help: "Markdown catch-all." },
-];
 
 export default async function NewProjectPage({
   searchParams,
@@ -145,30 +135,6 @@ export default async function NewProjectPage({
           </datalist>
           <Hint>If the prefix already exists, the existing program is reused.</Hint>
         </label>
-
-        <fieldset className="rounded-md border border-[var(--border)] p-3">
-          <legend className="px-1 text-[10px] font-semibold tracking-wider uppercase text-noble-black/70">
-            Planning sections to enable
-          </legend>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Tick the sections this project needs. You can toggle more on later.
-            The Status section is always on.
-          </p>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {SECTIONS.map((s) => (
-              <label
-                key={s.value}
-                className="flex items-start gap-2 rounded-md p-1.5 hover:bg-[var(--surface)]/60"
-              >
-                <input type="checkbox" name="section" value={s.value} className="mt-0.5" />
-                <span>
-                  <span className="text-sm font-medium text-noble-black">{s.label}</span>
-                  <span className="block text-xs text-[var(--muted)]">{s.help}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
 
         <label className="flex items-start gap-2 rounded-md border border-[var(--border)] p-3 hover:bg-[var(--surface)]/60">
           <input type="checkbox" name="seedDevChecklist" value="1" className="mt-0.5" />

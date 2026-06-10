@@ -14,12 +14,12 @@ interface Props {
     headroomNote: string | null;
     nextTrigger: string | null;
     keyMilestone: string | null;
-    dashboardHealth: string | null;
+    health: string | null;
   };
 }
 
 const HEALTH_OPTIONS = [
-  { value: "on_schedule", label: "On schedule" },
+  { value: "on_track", label: "On track" },
   { value: "at_risk", label: "At risk" },
   { value: "off_track", label: "Off track" },
 ];
@@ -32,7 +32,7 @@ export function MetaEditor({ projectId, initial }: Props) {
   const [headroomNote, setHeadroomNote] = useState(initial.headroomNote ?? "");
   const [nextTrigger, setNextTrigger] = useState(initial.nextTrigger ?? "");
   const [keyMilestone, setKeyMilestone] = useState(initial.keyMilestone ?? "");
-  const [health, setHealth] = useState(initial.dashboardHealth ?? "on_schedule");
+  const [health, setHealth] = useState(initial.health ?? "on_track");
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export function MetaEditor({ projectId, initial }: Props) {
     fd.set("headroomNote", headroomNote);
     fd.set("nextTrigger", nextTrigger);
     fd.set("keyMilestone", keyMilestone);
-    fd.set("dashboardHealth", health);
+    fd.set("health", health);
     startTransition(async () => {
       try {
         await saveDashboardMetaAction(projectId, fd);

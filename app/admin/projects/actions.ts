@@ -31,8 +31,7 @@ async function nextPipelineId(): Promise<string> {
 
 /**
  * Validates a Project #, ensures the Program row exists for the prefix
- * (creating it if needed), then inserts the Project row. Optional
- * sections are recorded in `templateToggles`.
+ * (creating it if needed), then inserts the Project row.
  */
 export async function createProjectAction(formData: FormData) {
   const user = await requireRole(["admin"]);
@@ -44,7 +43,6 @@ export async function createProjectAction(formData: FormData) {
   const status = String(formData.get("status") ?? "active");
   const programName = String(formData.get("programName") ?? "").trim() || null;
   const customer = String(formData.get("customer") ?? "").trim() || null;
-  const togglesRaw = formData.getAll("section").map((v) => String(v));
 
   if (!name) {
     redirect(`/admin/projects/new?error=${encodeURIComponent("Project name is required.")}`);
@@ -81,9 +79,6 @@ export async function createProjectAction(formData: FormData) {
     },
   });
 
-  const templateToggles: Record<string, boolean> = {};
-  for (const t of togglesRaw) templateToggles[t] = true;
-
   const created = await prisma.projectRow.create({
     data: {
       id: projectId,
@@ -92,7 +87,6 @@ export async function createProjectAction(formData: FormData) {
       subtitle,
       ownerId,
       status,
-      templateToggles: JSON.stringify(templateToggles),
     },
   });
 
@@ -102,7 +96,7 @@ export async function createProjectAction(formData: FormData) {
       entityType: "Project",
       entityId: created.id,
       action: "create",
-      after: JSON.stringify({ projectId, name, prefix, status, templateToggles }),
+      after: JSON.stringify({ projectId, name, prefix, status }),
     },
   });
 
@@ -161,7 +155,7 @@ export async function setAssignmentAction(formData: FormData) {
   }
   revalidatePath(`/admin/projects/${projectId}`);
   revalidatePath(`/projects/${projectId}`);
-  revalidatePath("/my-week");
+  revalidatePath("/my-work");
 }
 
 export async function updateProjectMetaAction(formData: FormData) {

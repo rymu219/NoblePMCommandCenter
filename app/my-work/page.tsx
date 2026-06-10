@@ -9,7 +9,7 @@ import {
   addDaysUTC,
   ymd,
 } from "@/lib/time-tracking";
-import { WeekGrid } from "@/app/my-week/week-grid";
+import { WeekGrid } from "./week-grid";
 import { MyTasks, type MyTaskGroup } from "./my-tasks";
 
 /*

@@ -7,14 +7,14 @@ interface Props {
   customerName?: string | null;
   updatedLabel: string;
   /** "ON SCHEDULE" | "AT RISK" | "OFF TRACK" — controls the pill colorway. */
-  health: "on_schedule" | "at_risk" | "off_track";
+  health: "on_track" | "at_risk" | "off_track";
 }
 
 const HEALTH_META: Record<
   Props["health"],
   { label: string; bg: string; text: string }
 > = {
-  on_schedule: { label: "ON SCHEDULE", bg: DASH.green, text: "#ffffff" },
+  on_track: { label: "ON TRACK", bg: DASH.green, text: "#ffffff" },
   at_risk: { label: "AT RISK", bg: DASH.amber, text: "#ffffff" },
   off_track: { label: "OFF TRACK", bg: DASH.red, text: "#ffffff" },
 };

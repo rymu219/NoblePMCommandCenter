@@ -11,7 +11,7 @@ export interface ProjectSummary {
   name: string;
   ownerName: string | null;
   status: string;
-  dashboardHealth: string | null;
+  health: string | null;
   budgetTotal: number | null;
   committedTotal: number | null;
   forecastTotal: number | null;
@@ -74,9 +74,6 @@ export interface ProgramRollup {
   openActionItems: ActionItemEntry[];
 }
 
-interface RiskItemRaw { text?: string; owner?: string; resolved?: boolean }
-interface DecisionItemRaw { date?: string; decision?: string; source?: string; author?: string }
-
 export async function loadProgramRollup(
   prefix: string
 ): Promise<ProgramRollup | null> {
@@ -89,7 +86,8 @@ export async function loadProgramRollup(
     include: {
       owner: true,
       phases: true,
-      sections: true,
+      risks: { where: { status: "open" }, orderBy: { position: "asc" } },
+      decisions: { orderBy: { position: "asc" } },
       statusUpdates: {
         orderBy: { reportDate: "desc" },
         take: 1,
@@ -110,13 +108,12 @@ export async function loadProgramRollup(
   for (const p of projects) {
     const latest = p.statusUpdates[0] ?? null;
     let oneLiner: string | null = null;
-    if (latest) {
-      try {
-        const blocks = JSON.parse(latest.blocks) as Array<{ heading: string; body: string }>;
-        if (blocks.length > 0) {
-          oneLiner = blocks[0].body.split("\n")[0].slice(0, 220);
-        }
-      } catch { /* ignore */ }
+    if (latest?.narrative) {
+      const firstLine = latest.narrative
+        .split(/\r?\n/)
+        .map((s) => s.trim().replace(/\*\*/g, ""))
+        .filter(Boolean)[0];
+      if (firstLine) oneLiner = firstLine.slice(0, 220);
     }
 
     // Earliest upcoming phase end serves as "next key date".
@@ -146,40 +143,26 @@ export async function loadProgramRollup(
       }
     }
 
-    // Pull risks and decisions from ProjectSection JSON.
-    for (const s of p.sections) {
-      try {
-        const parsed = JSON.parse(s.data);
-        if (s.kind === "risks_preconditions" && Array.isArray(parsed?.items)) {
-          for (const r of parsed.items as RiskItemRaw[]) {
-            if (!r?.resolved && typeof r?.text === "string" && r.text.trim()) {
-              risks.push({
-                projectId: p.id,
-                projectName: p.name,
-                text: r.text,
-                owner: r.owner,
-              });
-            }
-          }
-        }
-        if (s.kind === "decisions_log" && Array.isArray(parsed?.items)) {
-          const cutoff = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 30);
-          for (const d of parsed.items as DecisionItemRaw[]) {
-            if (typeof d?.decision !== "string" || !d.decision.trim()) continue;
-            const dt = d.date ? new Date(d.date) : null;
-            if (!dt || dt >= cutoff) {
-              decisions.push({
-                projectId: p.id,
-                projectName: p.name,
-                date: d.date ?? "",
-                decision: d.decision,
-                source: d.source ?? "",
-                author: d.author ?? "",
-              });
-            }
-          }
-        }
-      } catch { /* ignore malformed */ }
+    // Open risks + last-30-day decisions from the typed rows.
+    for (const r of p.risks) {
+      risks.push({
+        projectId: p.id,
+        projectName: p.name,
+        text: r.body,
+        owner: r.owner ?? undefined,
+      });
+    }
+    const cutoff = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 30);
+    for (const d of p.decisions) {
+      if (d.decidedOn && d.decidedOn < cutoff) continue;
+      decisions.push({
+        projectId: p.id,
+        projectName: p.name,
+        date: d.decidedOn ? d.decidedOn.toISOString().slice(0, 10) : "",
+        decision: d.body,
+        source: d.source,
+        author: d.author ?? "",
+      });
     }
 
     for (const ai of p.actionItems) {
@@ -197,7 +180,7 @@ export async function loadProgramRollup(
       name: p.name,
       ownerName: p.owner?.name ?? null,
       status: p.status,
-      dashboardHealth: p.dashboardHealth,
+      health: p.health,
       budgetTotal: p.budgetTotal,
       committedTotal: p.committedTotal,
       forecastTotal: p.forecastTotal,
@@ -218,7 +201,7 @@ export async function loadProgramRollup(
       acc.committed += p.committedTotal ?? 0;
       acc.forecast += p.forecastTotal ?? 0;
       if (p.status === "active") acc.activeProjectCount += 1;
-      if (p.dashboardHealth === "at_risk" || p.dashboardHealth === "off_track")
+      if (p.health === "at_risk" || p.health === "off_track")
         acc.atRiskProjectCount += 1;
       return acc;
     },

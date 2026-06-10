@@ -95,38 +95,26 @@ model ProjectRow {
   nextTrigger     String?
   /// Free-text "key milestone" line on the dashboard footer strip.
   keyMilestone    String?
-  /// DEPRECATED (v2): superseded by `health`. on_schedule | at_risk |
-  /// off_track — used by the old dashboard's hero pill. Dropped in v2 phase 4.
-  dashboardHealth String?
-  /// v2 canonical project health: on_track | at_risk | off_track. The single
-  /// source of truth for every health pill/color in the v2 UI (replaces
-  /// dashboardHealth + per-status-update labels as the project-level signal).
-  /// null = not yet migrated; readers treat null as on_track.
+  /// Canonical project health: on_track | at_risk | off_track. The single
+  /// source of truth for every health pill/color. null is read as on_track.
   health          String?
-  /// v2 free-form project notes (markdown-lite: **bold**, blank-line
-  /// paragraphs). Replaces the notes_freeform section blob.
+  /// Free-form project notes (markdown-lite: **bold**, blank-line paragraphs).
   notes           String?
   /// JSON map of manufacturing-development department contacts (role→name).
   devContacts     String?
-  /// JSON: which optional sections are enabled. Stored as TEXT on SQLite.
-  templateToggles String    @default("{}")
   lastUpdatedAt   DateTime  @updatedAt
   lastUpdatedById String?
   createdAt       DateTime  @default(now())
 
-  sections           ProjectSection[]
   assignments        ProjectAssignment[]
   timeEntries        TimeEntry[]
   timeNotes          TimeNote[]
-  ganttTasks         GanttTask[]
-  meetings           Meeting[]
   attachments        Attachment[]
   statusUpdates      StatusUpdate[]
   actionItems        ActionItem[]
   phases             Phase[]
   budgetTracks       BudgetTrack[]
   milestones         Milestone[]
-  sviSnapshots       SviSnapshot[]
   qualityInspections QualityInspection[]
   devTasks           DevTask[]
   parts              Part[]
@@ -136,9 +124,8 @@ model ProjectRow {
   productionRuns     ProductionRun[]
 }
 
-/// v2 — one tracked risk/precondition per row. Replaces the
-/// risks_preconditions ProjectSection JSON blob with typed, individually
-/// editable rows.
+/// One tracked risk/precondition per row — individually editable on the
+/// project page.
 model Risk {
   id        String     @id @default(cuid())
   projectId String
@@ -155,7 +142,7 @@ model Risk {
   @@index([projectId, status, position])
 }
 
-/// v2 — one logged decision per row. Replaces the decisions_log blob.
+/// One logged decision per row.
 model Decision {
   id        String     @id @default(cuid())
   projectId String
@@ -173,7 +160,7 @@ model Decision {
   @@index([projectId, position])
 }
 
-/// v2 — one production/material run per row. Replaces the parts_material blob.
+/// One production/material run per row.
 model ProductionRun {
   id        String     @id @default(cuid())
   projectId String
@@ -188,8 +175,8 @@ model ProductionRun {
   @@index([projectId, position])
 }
 
-/// Multi-month phase row that drives the Program Dashboard mini-Gantt.
-/// Distinct from GanttTask which is week-grain for the planning Gantt.
+/// Multi-month phase row — drives the dashboard mini-Gantt and the v2
+/// project/portfolio timelines alongside Milestone.
 model Phase {
   id        String     @id @default(cuid())
   projectId String
@@ -228,48 +215,6 @@ model ProjectAssignment {
   createdAt DateTime   @default(now())
 
   @@id([projectId, userId])
-}
-
-/// DEPRECATED (v2): replaced by typed rows — Risk, Decision, ProductionRun,
-/// ProjectRow.notes — via prisma/migrate-v2.ts. summary_cards and
-/// hours_by_role become derived views (budget fields + TimeEntry); the gantt
-/// blobs are replaced by Milestone.phase + Phase rendering. Kept read-only
-/// through the transition; dropped in v2 phase 4.
-/// One row per section instance on a project. `data` is JSON-as-TEXT.
-model ProjectSection {
-  id          String     @id @default(cuid())
-  projectId   String
-  project     ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  /// summary_cards | phases_runs | parts_material | hours_by_role |
-  /// gantt_overview | gantt_detail | risks_preconditions | decisions_log |
-  /// meetings | files | budget | notes_freeform
-  kind        String
-  position    Int
-  /// JSON-encoded section data.
-  data        String
-  updatedAt   DateTime   @updatedAt
-  updatedById String?
-
-  @@unique([projectId, kind])
-  @@index([projectId, position])
-}
-
-/// DEPRECATED (v2): never wired to any UI or loader (zero code references).
-/// Schedule rendering in v2 uses Milestone (+phase/dept) and Phase. Dropped
-/// in v2 phase 4.
-model GanttTask {
-  id        String     @id @default(cuid())
-  projectId String
-  project   ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
-  /// engineering | process | automation | quality
-  role      String
-  start     DateTime
-  end       DateTime
-  /// JSON array of GanttTask ids.
-  dependsOn String     @default("[]")
-  isGate    Boolean    @default(false)
-  status    String     @default("not_started")
 }
 
 model TimeEntry {
@@ -312,38 +257,6 @@ model PeriodClose {
   @@unique([year, month])
 }
 
-/// DEPRECATED (v2): meetings/transcript-proposal machinery is out of scope
-/// for the simplified rebuild. Dropped in v2 phase 4.
-model Meeting {
-  id                         String     @id @default(cuid())
-  projectId                  String
-  project                    ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  /// agenda | transcript
-  kind                       String
-  occurredAt                 DateTime   @default(now())
-  bodyText                   String
-  agendaGeneratedFromStateAt DateTime?
-  createdById                String?
-
-  proposals TranscriptProposal[]
-}
-
-/// DEPRECATED (v2): see Meeting. Dropped in v2 phase 4.
-model TranscriptProposal {
-  id             String    @id @default(cuid())
-  meetingId      String
-  meeting        Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  /// matches ProjectSection.kind
-  sectionKind    String
-  targetId       String? // optional row id when applicable
-  /// JSON-encoded proposed change.
-  proposedChange String
-  /// pending | accepted | rejected
-  status         String    @default("pending")
-  decidedById    String?
-  decidedAt      DateTime?
-}
-
 model Attachment {
   id           String     @id @default(cuid())
   projectId    String
@@ -383,9 +296,6 @@ model StatusUpdate {
   /// Free text — "Structured Delay", "External Pressure + Info Gap",
   /// "Watch Capacity", "No payment", etc.
   statusQualifier String?
-  /// DEPRECATED (v2): superseded by `narrative`. JSON-encoded array of
-  /// `{heading: string, body: string}`. Dropped in v2 phase 4.
-  blocks          String     @default("[]")
   /// v2 — markdown-lite narrative (same rules as ProjectRow.notes). One text
   /// field instead of structured blocks; replaces `blocks`.
   narrative       String?
@@ -412,10 +322,6 @@ model ActionItem {
   body           String
   dueDate        DateTime?
   completedAt    DateTime?
-  /// Decision impact tier for SVI Decision-Speed weighting: low | medium | high.
-  impact         String        @default("medium")
-  /// Whether this action is blocking progress (weighs heavier when overdue).
-  blocking       Boolean       @default(false)
   createdAt      DateTime      @default(now())
 
   @@index([projectId, completedAt])
@@ -460,11 +366,10 @@ model Milestone {
   actualDate   DateTime?
   /// Display order within the project (admin-controlled).
   position     Int        @default(0)
-  /// v2 — optional phase/group label ("Tooling", "Qualification", …). Groups
-  /// milestones into rows on the v2 project timeline; replaces the hand-drawn
-  /// gantt_overview blob bars as the schedule visual's data source.
+  /// Optional phase/group label ("Tooling", "Qualification", …). Groups
+  /// milestones on the project timeline.
   phase        String?
-  /// v2 — owning department for color coding: engineering | process |
+  /// Owning department for color coding: engineering | process |
   /// automation | quality. null = unassigned (renders neutral).
   dept         String?
   createdById  String?
@@ -547,30 +452,6 @@ model MilestoneEngagement {
 
   @@unique([milestoneId, userId])
   @@index([userId])
-}
-
-/// DEPRECATED (v2): the SVI system is retired in the simplified rebuild —
-/// nothing downstream consumes it. Dropped in v2 phase 4.
-/// Weekly snapshot of a project's Systemic Vitality Index, written by an admin
-/// "Capture snapshot" action. Powers the trailing-trend arrow ("down N weeks")
-/// on the executive card. Idempotent per (project, ISO-week) via the unique key.
-model SviSnapshot {
-  id             String     @id @default(cuid())
-  projectId      String
-  project        ProjectRow @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  /// Monday (UTC midnight) of the capture week — the trend bucket.
-  weekStart      DateTime
-  capturedAt     DateTime   @default(now())
-  composite      Float
-  decisionSpeed  Float
-  repeatProblems Float
-  infoFreshness  Float
-  earlyWarning   Float
-  /// high | moderate | low — qualifies the composite, never depresses it.
-  confidence     String
-
-  @@unique([projectId, weekStart])
-  @@index([projectId, weekStart])
 }
 
 /// One task in the standardized Molded-Part Manufacturing Development process.

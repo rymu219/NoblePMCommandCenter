@@ -13,13 +13,9 @@
     "lint": "eslint",
     "db:push": "prisma db push",
     "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
-    "backfill": "tsx --env-file-if-exists=.env prisma/backfill.ts",
-    "backfill:replans": "tsx --env-file-if-exists=.env prisma/backfill-replans.ts",
-    "db:migrate-v2": "tsx --env-file-if-exists=.env prisma/migrate-v2.ts",
-    "test:svi": "tsx lib/svi.test.ts",
     "test:checklist": "tsx lib/dev-checklist.test.ts",
     "test:issues": "tsx lib/issues-import.test.ts",
-    "test": "npm run test:svi && npm run test:checklist && npm run test:issues",
+    "test": "npm run test:checklist && npm run test:issues",
     "deploy:db": "prisma db push && npm run db:seed"
   },
   "dependencies": {

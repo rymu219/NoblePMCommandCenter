@@ -111,8 +111,7 @@ export async function setHealthAction(formData: FormData) {
 
 /**
  * The weekly ritual: pick health + write the narrative, one save. Sets
- * ProjectRow.health and appends a StatusUpdate (history preserved). Writes
- * `blocks` too so the v1 daily report keeps rendering until phase 4.
+ * ProjectRow.health and appends a StatusUpdate (history preserved).
  */
 export async function postUpdateAction(formData: FormData) {
   const user = await requireUser();
@@ -131,7 +130,6 @@ export async function postUpdateAction(formData: FormData) {
         statusLabel: HEALTH_TO_STATUS_LABEL[health],
         statusQualifier: qualifier,
         narrative,
-        blocks: JSON.stringify([{ heading: "Update", body: narrative }]),
         authorId: user.id,
       },
     });

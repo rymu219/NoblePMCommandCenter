@@ -8,7 +8,7 @@ import { dayDelta } from "@/lib/slippage";
 import { UNSPECIFIED_REASON, isKnownReason } from "@/lib/replan-reasons";
 
 /*
- * Command Center mutations. Mirrors app/projects/[id]/section-actions.ts:
+ * Command Center mutations. Conventions:
  * every write runs in a $transaction that also appends an AuditLog row, then
  * revalidates the board + report. Permissions are re-checked here on the
  * server — never trust the client.
@@ -45,7 +45,6 @@ function strOrNull(formData: FormData, field: string): string | null {
 function revalidate(projectId?: string) {
   revalidatePath("/board");
   revalidatePath("/board/report");
-  revalidatePath("/execution");
   revalidatePath("/my-work");
   revalidatePath("/portfolio");
   if (projectId) revalidatePath(`/projects/${projectId}`);

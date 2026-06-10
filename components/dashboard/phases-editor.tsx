@@ -145,7 +145,7 @@ export function PhasesEditor({ projectId, initial }: Props) {
         EDIT PHASES
       </div>
       <p className="mt-1 text-xs" style={{ color: DASH.muted }}>
-        Phases drive the Program Timeline mini-Gantt. Tick "Current" on the
+        Phases drive the Program Timeline mini-Gantt. Tick &ldquo;Current&rdquo; on the
         active phase to highlight its label.
       </p>
       <div className="mt-3 space-y-2">

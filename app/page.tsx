@@ -202,7 +202,7 @@ export default async function DailyReportDashboard() {
                     />
                   </header>
                   <div className="mt-3">
-                    <StatusSummary blocks={p.status!.blocks} />
+                    <StatusSummary narrative={p.status!.narrative} />
                   </div>
                   <div className="mt-3 text-[10px] text-[var(--muted)]">
                     Reported {p.status!.reportDate.toISOString().slice(0, 10)}

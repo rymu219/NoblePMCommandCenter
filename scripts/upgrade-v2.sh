@@ -44,9 +44,15 @@ if [ "$ORIG_REF" = "HEAD" ]; then
   ORIG_REF=$(git rev-parse HEAD)
 fi
 
+# Always return to the starting ref, even on failure/Ctrl-C, so a crash can
+# never strand the checkout on the transition commit. -f discards the
+# package-lock.json churn that `npm install` leaves behind.
+restore_ref() { git checkout -fq "$ORIG_REF" 2>/dev/null || true; }
+trap restore_ref EXIT
+
 echo
 echo "== Step 1/2 — additive schema + data migration (v2-transition) =="
-git checkout -q "$TRANSITION"
+git checkout -fq "$TRANSITION"
 npm install --no-audit --no-fund --loglevel=error
 npx prisma db push
 echo
@@ -54,7 +60,6 @@ npm run db:migrate-v2 -- --dry-run
 echo
 read -r -p "Proceed with the migration shown above? [y/N] " yn
 if [ "${yn}" != "y" ] && [ "${yn}" != "Y" ]; then
-  git checkout -q "$ORIG_REF"
   echo "Aborted — nothing was migrated; schema changes so far were additive only."
   exit 1
 fi
@@ -62,7 +67,7 @@ npm run db:migrate-v2
 
 echo
 echo "== Step 2/2 — final schema (drops the legacy blob tables) =="
-git checkout -q "$ORIG_REF"
+git checkout -fq "$ORIG_REF"
 npm install --no-audit --no-fund --loglevel=error
 npx prisma db push --accept-data-loss
 

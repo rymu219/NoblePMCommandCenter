@@ -84,8 +84,16 @@ Nav shrinks to: Portfolio · Projects · My Work · Admin.
 
 ## Production upgrade runbook (v1 → v2)
 
-The data migration must run BEFORE the final schema drops the legacy
-tables, so production upgrades in two steps:
+One command, from a clean checkout of main, with DATABASE_URL pointing at
+the production Postgres:
+
+```bash
+DATABASE_URL="postgresql://..." bash scripts/upgrade-v2.sh
+```
+
+It shows a dry-run preview and asks for confirmation before writing.
+Equivalent manual steps (the migration must run BEFORE the final schema
+drops the legacy tables):
 
 ```bash
 # Step 1 — from the transition commit (additive schema + data migration)

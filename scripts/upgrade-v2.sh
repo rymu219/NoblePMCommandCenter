@@ -29,6 +29,16 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
+echo "Checking database connectivity (password never printed)…"
+node -e '
+const u = new URL(process.env.DATABASE_URL);
+console.log(`  host=${u.hostname} port=${u.port || 5432} db=${u.pathname.slice(1)}`);
+const s = require("net").connect({ host: u.hostname, port: Number(u.port || 5432), timeout: 8000 });
+s.on("connect", () => { console.log("  reachable — proceeding."); s.end(); });
+s.on("timeout", () => { console.error("  ERROR: connection timed out — is this the PUBLIC url (proxy.rlwy.net)?"); process.exit(1); });
+s.on("error", (e) => { console.error("  ERROR:", e.message); process.exit(1); });
+' || exit 1
+
 ORIG_REF=$(git rev-parse --abbrev-ref HEAD)
 if [ "$ORIG_REF" = "HEAD" ]; then
   ORIG_REF=$(git rev-parse HEAD)
@@ -38,7 +48,7 @@ echo
 echo "== Step 1/2 — additive schema + data migration (v2-transition) =="
 git checkout -q "$TRANSITION"
 npm install --no-audit --no-fund --loglevel=error
-npx prisma db push --skip-generate >/dev/null && npx prisma generate >/dev/null
+npx prisma db push
 echo
 npm run db:migrate-v2 -- --dry-run
 echo
@@ -54,8 +64,7 @@ echo
 echo "== Step 2/2 — final schema (drops the legacy blob tables) =="
 git checkout -q "$ORIG_REF"
 npm install --no-audit --no-fund --loglevel=error
-npx prisma generate >/dev/null
-npx prisma db push --skip-generate --accept-data-loss
+npx prisma db push --accept-data-loss
 
 echo
 echo "Done — production database is on the v2 schema ($ORIG_REF)."

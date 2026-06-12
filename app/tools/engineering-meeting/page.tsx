@@ -13,10 +13,10 @@ import { PrintButton } from "../print-button";
 
 // Engineers to surface, in meeting order. Matched against the User.name
 // field by first name (case-insensitive) so the production data's full
-// names ("Kent Smith") still resolve.
+// names ("Kent Smith", "Don Miller") still resolve.
 const ENGINEER_NAMES = [
   "Kent",
-  "Dont",
+  "Don",
   "Victor",
   "Billy",
   "Kris",
